@@ -1,0 +1,42 @@
+# Python cache
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Virtual environments
+.venv/
+.venv*/
+venv/
+env/
+
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+
+# IDE and OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Datasets
+*.csv
+*.parquet
+*.feather
+
+# Logs and temporary files
+*.log
+*.tmp
+*.bak
+*.backup
+
+# Jupyter temporary files
+.ipynb_checkpoints/
+
+# Unnecessary archives
+*.zip
+*.rar
+*.7z
+# Old model file not used by the reconstructed backend
+/credit_risk_model.pkl

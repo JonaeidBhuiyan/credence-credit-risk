@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#101b2d">
+  <title>Credence — Credit Risk Intelligence</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <a class="brand" href="#"><span class="brand-mark">C</span><span>credence<span class="brand-sub">RISK INTELLIGENCE</span></span></a>
+      <div class="side-label">WORKSPACE</div>
+      <nav class="nav">
+        <a class="nav-link active" href="#overview"><span class="nav-icon">◫</span> Overview</a>
+        <a class="nav-link" href="#assessment"><span class="nav-icon">＋</span> New assessment</a>
+        <a class="nav-link" href="#batch"><span class="nav-icon">⇧</span> Batch analysis</a>
+        <a class="nav-link" href="#history"><span class="nav-icon">◷</span> Prediction history</a>
+      </nav>
+      <div class="sidebar-bottom">
+        <div class="api-card">
+          <span class="status-dot" id="apiDot"></span>
+          <div><strong id="apiStatus">Checking API</strong><small id="apiMessage">Connecting to prediction service</small></div>
+        </div>
+        <div class="side-foot">CREDIT RISK MODEL <span>v1.0.0</span></div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div><div class="eyebrow">CREDIT DECISION PLATFORM</div><div class="page-title">Risk overview</div></div>
+        <div class="top-actions"><span class="live-pill"><i></i> LIVE WORKSPACE</span><button class="button button-primary button-small" onclick="document.querySelector('#assessment').scrollIntoView({behavior:'smooth'})">＋ New assessment</button></div>
+      </header>
+
+      <section class="welcome-row" id="overview">
+        <div><div class="eyebrow">INTELLIGENCE / OVERVIEW</div><h1>Make every credit<br><em>decision count.</em></h1><p class="muted">Evaluate applicant risk, understand model signals, and explore alternative lending scenarios.</p></div>
+        <div class="threshold-card"><div class="eyebrow">DECISION THRESHOLD</div><div class="threshold-big"><span id="thresholdValue">50</span><small>%</small></div><input id="globalThreshold" type="range" min="1" max="99" value="50"><div class="range-labels"><span>More approvals</span><span>More cautious</span></div><p class="tiny muted">Used for approve / reject classification.</p></div>
+      </section>
+
+      <section class="metrics-grid">
+        <article class="metric-card"><div class="metric-label">TOTAL ASSESSMENTS <span>↗</span></div><div class="metric-value" id="totalAssessments">0</div><div class="metric-note">Saved in this browser</div></article>
+        <article class="metric-card"><div class="metric-label">HIGH-RISK CASES <span class="metric-icon amber">◆</span></div><div class="metric-value" id="highRiskCount">0</div><div class="metric-note">Based on model predictions</div></article>
+        <article class="metric-card"><div class="metric-label">APPROVAL RATE <span class="metric-icon green">↗</span></div><div class="metric-value" id="approvalRate">—</div><div class="metric-note">Current saved history</div></article>
+        <article class="metric-card"><div class="metric-label">MODEL STATUS <span class="metric-icon green">●</span></div><div class="metric-value metric-status" id="modelStatus">Checking</div><div class="metric-note">FastAPI connection</div></article>
+      </section>
+
+      <section class="workspace-grid" id="assessment">
+        <div class="panel form-panel">
+          <div class="panel-heading"><div><div class="eyebrow">01 / APPLICANT PROFILE</div><h2>New credit assessment</h2><p class="muted">Enter the applicant and loan details below.</p></div><span class="step-tag">FORM 01</span></div>
+          <form id="creditForm">
+            <div class="form-section-title">PERSONAL INFORMATION</div>
+            <div class="form-grid">
+              <label>Applicant age <span class="required">*</span><input name="person_age" type="number" min="18" max="100" placeholder="e.g. 29" required></label>
+              <label>Annual income ($) <span class="required">*</span><input name="person_income" type="number" min="1" step="0.01" placeholder="e.g. 65000" required></label>
+              <label>Employment length (years) <span class="required">*</span><input name="person_emp_length" type="number" min="0" max="100" step="0.1" placeholder="e.g. 4" required></label>
+              <label>Home ownership <span class="required">*</span><select name="person_home_ownership" required><option value="">Select ownership</option><option>RENT</option><option>OWN</option><option>MORTGAGE</option><option>OTHER</option></select></label>
+            </div>
+            <div class="form-section-title section-spaced">LOAN DETAILS</div>
+            <div class="form-grid">
+              <label>Loan amount ($) <span class="required">*</span><input name="loan_amnt" id="loanAmount" type="number" min="1" step="0.01" placeholder="e.g. 12000" required></label>
+              <label>Interest rate (%) <span class="required">*</span><input name="loan_int_rate" type="number" min="0" max="100" step="0.01" placeholder="e.g. 11.5" required></label>
+              <label>Loan intent <span class="required">*</span><select name="loan_intent" required><option value="">Select purpose</option><option>PERSONAL</option><option>EDUCATION</option><option>MEDICAL</option><option>VENTURE</option><option>HOMEIMPROVEMENT</option><option>DEBTCONSOLIDATION</option></select></label>
+              <label>Loan grade <span class="required">*</span><select name="loan_grade" required><option value="">Select grade</option><option>A</option><option>B</option><option>C</option><option>D</option><option>E</option><option>F</option><option>G</option></select></label>
+              <label>Previous default on file <span class="required">*</span><select name="cb_person_default_on_file" required><option value="">Select answer</option><option value="Y">Yes</option><option value="N">No</option></select></label>
+              <label>Credit history length (years) <span class="required">*</span><input name="cb_person_cred_hist_length" type="number" min="0" max="100" step="0.1" placeholder="e.g. 5" required></label>
+            </div>
+            <div class="ratio-box"><div><span class="ratio-label">LOAN-TO-INCOME RATIO</span><small>Automatically calculated · Loan amount ÷ Annual income</small></div><strong id="ratioValue">—</strong></div>
+            <div class="form-footer"><span class="tiny muted">All fields are required.</span><button class="button button-primary" id="predictBtn" type="submit">Run risk assessment <span>→</span></button></div>
+          </form>
+          <div class="error-message" id="formError" role="alert"></div>
+        </div>
+
+        <div class="panel result-panel" id="results">
+          <div class="panel-heading"><div><div class="eyebrow">02 / MODEL OUTPUT</div><h2>Assessment result</h2><p class="muted">Your prediction will appear here.</p></div><span class="result-orb">✳</span></div>
+          <div class="empty-state" id="emptyState"><div class="empty-graphic">⌁</div><strong>Awaiting applicant data</strong><p>Complete the form and run an assessment to see the model's prediction and risk signals.</p></div>
+          <div id="resultContent" class="hidden">
+            <div class="probability-head"><span class="eyebrow">DEFAULT PROBABILITY</span><span class="risk-badge" id="riskBadge">—</span></div>
+            <div class="probability-number"><span id="probabilityValue">0.0</span><small>%</small></div>
+            <div class="probability-track"><div id="probabilityBar"></div></div>
+            <div class="decision-row"><div><span class="eyebrow">MODEL DECISION</span><strong id="decisionValue">—</strong></div><div class="decision-mark" id="decisionMark">—</div></div>
+            <div class="result-threshold"><label for="resultThreshold">Decision threshold</label><strong id="resultThresholdValue">50%</strong></div>
+            <input id="resultThreshold" type="range" min="1" max="99" value="50">
+            <p class="tiny muted">Changing the threshold updates the decision using the latest probability.</p>
+            <div class="divider"></div>
+            <div class="eyebrow">WHY DID THE MODEL DECIDE THIS?</div>
+            <div id="explanationList" class="explanation-list"><p class="muted tiny">Run an assessment to request feature explanations.</p></div>
+            <div class="divider"></div>
+            <div class="eyebrow">WHAT-IF SCENARIO</div>
+            <p class="muted tiny">Change the loan amount or interest rate to compare a new scenario.</p>
+            <div class="whatif-grid">
+              <label>New loan amount ($)<input id="whatIfAmount" type="number" min="1" step="0.01" placeholder="Optional"></label>
+              <label>New interest rate (%)<input id="whatIfRate" type="number" min="0" max="100" step="0.01" placeholder="Optional"></label>
+            </div>
+            <button class="button button-outline button-full" id="whatIfBtn" type="button">Compare scenario →</button>
+            <div id="whatIfResult" class="whatif-result hidden"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel batch-panel" id="batch">
+        <div class="panel-heading"><div><div class="eyebrow">03 / PORTFOLIO OPERATIONS</div><h2>Batch prediction</h2><p class="muted">Score multiple applicants in one upload and export the results.</p></div><span class="step-tag">CSV</span></div>
+        <div class="upload-row"><div class="upload-icon">⇧</div><div class="upload-copy"><strong>Upload applicant data</strong><span>CSV format · Maximum 10 MB · Up to 10,000 rows</span><small>Required columns must match the API's feature names. Do not include the target column.</small></div><label class="button button-outline file-button">Choose CSV<input id="csvFile" type="file" accept=".csv,text/csv" hidden></label></div>
+        <div class="batch-file hidden" id="batchFileName"></div>
+        <div class="batch-actions"><span class="tiny muted" id="batchMessage">Your downloaded file will include a prediction for each row.</span><button class="button button-primary" id="batchBtn" disabled>Run batch prediction →</button></div>
+      </section>
+
+      <section class="panel history-panel" id="history">
+        <div class="panel-heading"><div><div class="eyebrow">04 / RECENT ACTIVITY</div><h2>Prediction history</h2><p class="muted">Assessments saved locally in this browser.</p></div><button class="button button-quiet button-small" id="clearHistory">Clear history</button></div>
+        <div class="table-wrap"><table><thead><tr><th>DATE & TIME</th><th>APPLICANT</th><th>LOAN AMOUNT</th><th>DEFAULT PROBABILITY</th><th>RISK</th><th>DECISION</th></tr></thead><tbody id="historyBody"><tr><td colspan="6" class="table-empty">No predictions yet. Your completed assessments will appear here.</td></tr></tbody></table></div>
+      </section>
+      <footer class="footer"><span>CREDENCE <b>·</b> CREDIT RISK INTELLIGENCE</span><span>Decision support only · Validate model outputs before real-world use</span></footer>
+    </main>
+  </div>
+  <div class="toast" id="toast" role="status"></div>
+  <script src="app.js"></script>
+</body>
+</html>
