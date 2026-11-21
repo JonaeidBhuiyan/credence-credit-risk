@@ -1,4 +1,4 @@
-const API_BASE = "http://127.0.0.1:8000";
+const API_BASE = "https://credence-credit-risk-2.onrender.com/";
 const $ = (selector) => document.querySelector(selector);
 const form = $("#creditForm");
 let latestApplication = null;
