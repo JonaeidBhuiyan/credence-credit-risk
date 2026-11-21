@@ -13,7 +13,50 @@ let currentThreshold = 0.5;
 
 
 // ==========================================
-// 2. API STATUS / HEALTH CHECK
+// 2. ERROR FORMATTER
+// ==========================================
+
+function formatApiError(detail) {
+    if (typeof detail === "string") {
+        return detail;
+    }
+
+    if (Array.isArray(detail)) {
+        return detail.map((item, index) => {
+            if (typeof item === "string") return item;
+
+            const location = Array.isArray(item.loc)
+                ? item.loc.join(" → ")
+                : "Unknown field";
+
+            const message =
+                item.msg ||
+                item.message ||
+                JSON.stringify(item);
+
+            return `${index + 1}. ${location}: ${message}`;
+        }).join("\n");
+    }
+
+    if (detail && typeof detail === "object") {
+        return Object.entries(detail)
+            .map(([key, value]) => {
+                const formattedValue =
+                    typeof value === "object"
+                        ? JSON.stringify(value)
+                        : String(value);
+
+                return `${key}: ${formattedValue}`;
+            })
+            .join("\n");
+    }
+
+    return String(detail || "An unknown error occurred.");
+}
+
+
+// ==========================================
+// 3. API STATUS / HEALTH CHECK
 // ==========================================
 
 function setApiStatus(isOnline, message = "") {
@@ -78,7 +121,7 @@ async function checkHealth() {
 
 
 // ==========================================
-// 3. APPLICATION INPUTS
+// 4. APPLICATION INPUTS
 // ==========================================
 
 function readApplication() {
@@ -92,15 +135,19 @@ function readApplication() {
     const data = {};
 
     for (const [key, value] of formData.entries()) {
-        if (value.trim() === "") {
+        if (typeof value === "string" && value.trim() === "") {
             throw new Error(`Please complete the ${key} field.`);
         }
 
-        const numericValue = Number(value);
+        const trimmedValue =
+            typeof value === "string" ? value.trim() : value;
 
-        data[key] = Number.isNaN(numericValue)
-            ? value
-            : numericValue;
+        const numericValue = Number(trimmedValue);
+
+        data[key] =
+            trimmedValue !== "" && !Number.isNaN(numericValue)
+                ? numericValue
+                : trimmedValue;
     }
 
     return data;
@@ -108,7 +155,7 @@ function readApplication() {
 
 
 // ==========================================
-// 4. CREDIT UTILIZATION RATIO
+// 5. CREDIT UTILIZATION RATIO
 // ==========================================
 
 function updateRatio() {
@@ -134,7 +181,7 @@ function updateRatio() {
 
 
 // ==========================================
-// 5. RISK CLASSIFICATION
+// 6. RISK CLASSIFICATION
 // ==========================================
 
 function getRisk(probability) {
@@ -154,14 +201,23 @@ function getDecision(probability, threshold = currentThreshold) {
 
 
 // ==========================================
-// 6. PREDICTION RESULT
+// 7. PREDICTION RESULT
 // ==========================================
 
 function renderDecision(result) {
-    currentPrediction = result;
-
     const probability = Number(result.default_probability);
     const nonDefaultProbability = Number(result.non_default_probability);
+
+    if (
+        !Number.isFinite(probability) ||
+        !Number.isFinite(nonDefaultProbability)
+    ) {
+        throw new Error(
+            "Invalid prediction response. Check the backend response format."
+        );
+    }
+
+    currentPrediction = result;
 
     const defaultPercent = probability * 100;
     const nonDefaultPercent = nonDefaultProbability * 100;
@@ -222,7 +278,7 @@ function renderDecision(result) {
 
 
 // ==========================================
-// 7. EXPLANATION
+// 8. EXPLANATION
 // ==========================================
 
 function renderExplanation(data) {
@@ -262,7 +318,7 @@ function renderExplanation(data) {
         row.className = "explanation-item";
 
         const nameElement = document.createElement("span");
-        nameElement.textContent = name;
+        nameElement.textContent = String(name);
 
         const valueElement = document.createElement("span");
         valueElement.textContent =
@@ -272,25 +328,6 @@ function renderExplanation(data) {
 
         row.append(nameElement, valueElement);
         container.appendChild(row);
-    });
-}
-
-
-// ==========================================
-// 8. HTML ESCAPING
-// ==========================================
-
-function escapeHtml(value) {
-    return String(value).replace(/[&<>"']/g, (char) => {
-        const entities = {
-            "&": "&amp;",
-            "<": "&lt;",
-            ">": "&gt;",
-            '"': "&quot;",
-            "'": "&#039;"
-        };
-
-        return entities[char];
     });
 }
 
@@ -367,21 +404,42 @@ function renderHistory() {
 // ==========================================
 
 async function postJson(path, payload) {
-    const response = await fetch(`${API_BASE}${path}`, {
-        method: "POST",
+    let response;
 
-        headers: {
-            "Content-Type": "application/json"
-        },
+    try {
+        response = await fetch(`${API_BASE}${path}`, {
+            method: "POST",
 
-        body: JSON.stringify(payload)
-    });
+            headers: {
+                "Content-Type": "application/json"
+            },
 
-    const data = await response.json();
+            body: JSON.stringify(payload)
+        });
+
+    } catch (error) {
+        throw new Error(
+            `Could not connect to the backend: ${error.message}`
+        );
+    }
+
+    const responseText = await response.text();
+
+    let data;
+
+    try {
+        data = responseText ? JSON.parse(responseText) : {};
+    } catch {
+        throw new Error(
+            `Backend returned an invalid response (HTTP ${response.status}).`
+        );
+    }
 
     if (!response.ok) {
+        const detail = data.detail ?? data.message ?? data;
+
         throw new Error(
-            data.detail || `Request failed: ${response.status}`
+            `HTTP ${response.status}: ${formatApiError(detail)}`
         );
     }
 
@@ -411,10 +469,14 @@ if (creditForm) {
 
             const application = readApplication();
 
+            console.log("Submitted application:", application);
+
             const result = await postJson(
                 "/predict",
                 application
             );
+
+            console.log("Prediction response:", result);
 
             renderDecision(result);
 
@@ -424,14 +486,24 @@ if (creditForm) {
                     application
                 );
 
+                console.log("Explanation response:", explanation);
+
                 renderExplanation(explanation);
 
             } catch (error) {
                 console.error("Explanation error:", error);
+
+                const container = $("#explanation");
+
+                if (container) {
+                    container.textContent =
+                        `Explanation unavailable: ${error.message}`;
+                }
             }
 
         } catch (error) {
             console.error("Prediction error:", error);
+
             alert(error.message);
 
         } finally {
@@ -532,7 +604,6 @@ if (batchForm) {
         }
 
         const formData = new FormData();
-
         formData.append("file", fileInput.files[0]);
 
         const button = batchForm.querySelector(
@@ -554,11 +625,22 @@ if (batchForm) {
             );
 
             if (!response.ok) {
-                const errorData = await response.json();
+                const responseText = await response.text();
 
-                throw new Error(
-                    errorData.detail || "Batch prediction failed."
-                );
+                let errorData;
+
+                try {
+                    errorData = JSON.parse(responseText);
+                } catch {
+                    errorData = responseText;
+                }
+
+                const detail =
+                    typeof errorData === "object"
+                        ? errorData.detail ?? errorData
+                        : errorData;
+
+                throw new Error(formatApiError(detail));
             }
 
             const blob = await response.blob();
@@ -621,10 +703,8 @@ if (clearHistoryButton) {
 // 17. INITIALIZATION
 // ==========================================
 
-document.addEventListener("DOMContentLoaded", () => {
-    renderHistory();
-    updateRatio();
-    checkHealth();
+renderHistory();
+updateRatio();
+checkHealth();
 
-    setInterval(checkHealth, 30000);
-});
+setInterval(checkHealth, 30000);
