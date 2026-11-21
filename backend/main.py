@@ -138,16 +138,6 @@ class CreditRiskInput(BaseModel):
     @model_validator(mode="after")
     def validate_and_derive(self):
 
-        if self.person_emp_length > self.person_age:
-            raise ValueError(
-                "person_emp_length cannot be greater than person_age."
-            )
-
-        if self.cb_person_cred_hist_length > self.person_age:
-            raise ValueError(
-                "cb_person_cred_hist_length cannot be greater than person_age."
-            )
-
         self.loan_percent_income = self.loan_amnt / self.person_income
 
         return self
@@ -223,9 +213,6 @@ async def lifespan(app: FastAPI):
 
     loaded_preprocessors = []
     loaded_xgb_models = []
-    loaded_explainers = []
-    loaded_feature_names = []
-
     for fold_number, (pre_path, xgb_path) in enumerate(
         zip(PREPROCESSOR_PATHS, XGBOOST_PATHS), start=1
     ):
@@ -243,20 +230,15 @@ async def lifespan(app: FastAPI):
         loaded_preprocessors.append(preprocessor)
         loaded_xgb_models.append(classifier)
 
-        # Build SHAP explainers ONCE (they are expensive to construct),
-        # not on every /explain request.
-        loaded_explainers.append(shap.TreeExplainer(classifier))
-        loaded_feature_names.append(
-            [str(n) for n in preprocessor.get_feature_names_out()]
-        )
-
         print(f"Successfully loaded fold {fold_number}")
 
     preprocessors = loaded_preprocessors
     xgb_models = loaded_xgb_models
     calibration_params = loaded_calibration_params
-    shap_explainers = loaded_explainers
-    shap_feature_names = loaded_feature_names
+    # SHAP explainers are built lazily on the first /explain call, so a
+    # SHAP/XGBoost incompatibility can never stop predictions from working.
+    shap_explainers = []
+    shap_feature_names = []
 
     model = "5-Fold Calibrated XGBoost Ensemble"
 
@@ -309,7 +291,6 @@ def model_is_loaded() -> bool:
         and len(preprocessors) == N_FOLDS
         and len(xgb_models) == N_FOLDS
         and len(calibration_params) == N_FOLDS
-        and len(shap_explainers) == N_FOLDS
     )
 
 
@@ -436,19 +417,35 @@ def make_prediction(input_data: dict, threshold: float | None = None) -> dict:
 # 9. SHAP EXPLANATION
 # ============================================================
 
+def get_shap_explainers():
+    """Build the five explainers on first use and cache them."""
+
+    global shap_explainers
+
+    if len(shap_explainers) != N_FOLDS:
+        shap_explainers = [shap.TreeExplainer(c) for c in xgb_models]
+
+    return shap_explainers
+
+
 def calculate_shap(input_data: dict) -> list[dict]:
 
     check_model()
 
     input_df = prepare_input(input_data)
 
-    fold_values = []
-    feature_names = shap_feature_names[0]
+    explainers = get_shap_explainers()
 
-    for preprocessor, explainer, names in zip(
-        preprocessors, shap_explainers, shap_feature_names
-    ):
+    fold_values = []
+    feature_names = None
+
+    for preprocessor, explainer in zip(preprocessors, explainers):
         transformed = preprocessor.transform(input_df)
+
+        names = [str(n) for n in preprocessor.get_feature_names_out()]
+
+        if feature_names is None:
+            feature_names = names
 
         shap_values = explainer.shap_values(transformed)
 
