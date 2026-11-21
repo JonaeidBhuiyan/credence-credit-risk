@@ -613,14 +613,15 @@ def make_prediction(
 
     return {
 
+        # Return probability as a fraction (0 to 1)
         "default_probability": round(
-            probability * 100,
-            2
+            probability,
+            6
         ),
 
         "non_default_probability": round(
-            non_default_probability * 100,
-            2
+            non_default_probability,
+            6
         ),
 
         "risk_band": risk_band,
@@ -935,6 +936,7 @@ def explain(request: ExplanationRequest):
         ) from e
 
 
+
 # ============================================================
 # 15. WHAT-IF ENDPOINT
 # ============================================================
@@ -944,21 +946,24 @@ def what_if(request: WhatIfRequest):
 
     try:
 
+        # Step 1: Get threshold
         threshold = get_threshold(
             request.threshold
         )
 
+        # Step 2: Get original application data
         original_data = request.application.model_dump()
 
+        # Step 3: Get original prediction
         original_result = make_prediction(
-
             original_data,
-
             threshold
         )
 
+        # Step 4: Create a copy of original data
         modified_data = original_data.copy()
 
+        # Step 5: Apply user modifications
         if request.loan_amnt is not None:
 
             modified_data["loan_amnt"] = (
@@ -971,8 +976,7 @@ def what_if(request: WhatIfRequest):
                 request.loan_int_rate
             )
 
-        # Recalculate derived feature
-
+        # Step 6: Recalculate derived feature
         modified_data["loan_percent_income"] = (
 
             modified_data["loan_amnt"]
@@ -980,13 +984,14 @@ def what_if(request: WhatIfRequest):
             / modified_data["person_income"]
         )
 
+        # Step 7: Get new prediction
         new_result = make_prediction(
-
             modified_data,
-
             threshold
         )
 
+        # Step 8: Calculate probability difference
+        # Probability is in fraction format (0 to 1)
         difference = (
 
             new_result["default_probability"]
@@ -994,6 +999,7 @@ def what_if(request: WhatIfRequest):
             - original_result["default_probability"]
         )
 
+        # Step 9: Return comparison
         return {
 
             "success": True,
@@ -1004,7 +1010,7 @@ def what_if(request: WhatIfRequest):
 
             "probability_difference": round(
                 difference,
-                2
+                6
             ),
 
             "change": (
