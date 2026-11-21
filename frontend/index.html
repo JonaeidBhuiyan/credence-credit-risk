@@ -1,121 +1,599 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#101b2d">
+
   <title>Credence — Credit Risk Intelligence</title>
+
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
   <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css">
+
+<style>
+:root {
+  --navy:#101b2d; --navy-2:#17263c; --ink:#172235; --muted:#778397; --line:#e7ebf0;
+  --paper:#f5f7fa; --white:#fff; --teal:#087e78; --teal-light:#e4f4f1; --amber:#b87921;
+  --red:#b94b4b; --green:#17816d; --shadow:0 12px 36px rgba(25,42,65,.055);
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:24px}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:"DM Sans",sans-serif;font-size:14px}
+button,input,select{font:inherit}
+button{cursor:pointer}
+.app-shell{min-height:100vh}
+.sidebar{width:242px;position:fixed;inset:0 auto 0 0;background:var(--navy);color:#fff;padding:30px 19px 20px;display:flex;flex-direction:column;z-index:5}
+.brand{display:flex;align-items:center;gap:11px;color:#fff;text-decoration:none;font:800 21px Manrope,sans-serif;letter-spacing:-1px;margin:0 0 57px 4px}
+.brand-mark{width:35px;height:35px;border:1px solid #4d9b98;border-radius:11px;display:grid;place-items:center;color:#80d0c6;font-size:20px}
+.brand-sub{display:block;font:500 8px "DM Mono",monospace;letter-spacing:1.6px;color:#8d9caf;margin-top:3px}
+.side-label,.eyebrow,.form-section-title,.metric-label,.ratio-label{font:500 9px "DM Mono",monospace;letter-spacing:1.35px}
+.side-label{color:#728299;padding:0 12px 13px}
+.nav{display:grid;gap:7px}
+.nav-link{display:flex;align-items:center;gap:12px;padding:12px;border-radius:8px;color:#aab6c6;text-decoration:none;font-size:12px;transition:.2s}
+.nav-link:hover,.nav-link.active{background:#20334b;color:#fff}
+.nav-link.active{box-shadow:inset 2px 0 #63bcb2}
+.nav-icon{font-size:17px;width:18px;text-align:center;color:#85bdb8}
+.sidebar-bottom{margin-top:auto}
+.api-card{display:flex;gap:11px;align-items:center;padding:13px 11px;background:#192a40;border:1px solid #2b3d54;border-radius:9px}
+.status-dot{width:8px;height:8px;border-radius:50%;background:#d39a47;box-shadow:0 0 0 4px #d39a471b;flex:none}
+.status-dot.online{background:#43b99b;box-shadow:0 0 0 4px #43b99b20}
+.status-dot.offline{background:#d65e5e}
+.api-card strong{display:block;font-size:11px;font-weight:600}
+.api-card small{display:block;color:#91a0b3;font-size:9px;margin-top:3px}
+.side-foot{display:flex;justify-content:space-between;color:#718096;font:9px "DM Mono",monospace;margin:20px 3px 0}
+.side-foot span{color:#9babc0}
+.main{margin-left:242px;padding:0 43px 30px;max-width:1700px}
+.topbar{height:83px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line)}
+.eyebrow{color:#8490a1}
+.page-title{font:700 17px Manrope,sans-serif;margin-top:4px}
+.top-actions{display:flex;align-items:center;gap:17px}
+.live-pill{font:9px "DM Mono",monospace;letter-spacing:.8px;color:#657489}
+.live-pill i{display:inline-block;width:6px;height:6px;background:#20a486;border-radius:50%;margin:0 6px 1px 0}
+.button{border:0;border-radius:7px;padding:11px 16px;font-size:11px;font-weight:700;transition:.2s;display:inline-flex;align-items:center;justify-content:center;gap:13px}
+.button-primary{background:var(--teal);color:#fff;box-shadow:0 4px 10px #087e7820}
+.button-primary:hover{background:#066c67;transform:translateY(-1px)}
+.button-outline{background:#fff;border:1px solid #d9e0e7;color:#34445a}
+.button-outline:hover{border-color:var(--teal);color:var(--teal)}
+.button-quiet{background:transparent;color:#778397}
+.button-small{padding:9px 13px;font-size:10px}
+.button-full{width:100%;margin-top:13px}
+.welcome-row{display:flex;justify-content:space-between;align-items:center;padding:37px 0 27px;gap:25px}
+h1{font:800 clamp(29px,3vw,40px)/1.14 Manrope,sans-serif;letter-spacing:-1.8px;margin:12px 0 10px}
+h1 em{font-style:normal;color:var(--teal)}
+.muted{color:var(--muted)}
+.welcome-row p{font-size:12px;max-width:490px;line-height:1.7;margin:0}
+.threshold-card{width:245px;background:#fff;border:1px solid var(--line);border-radius:10px;padding:15px 17px;box-shadow:var(--shadow);flex:none}
+.threshold-big{font:800 28px Manrope,sans-serif;margin:5px 0 0}
+.threshold-big small{font-size:14px;color:#7b8797}
+input[type=range]{width:100%;accent-color:var(--teal);cursor:pointer;margin:10px 0 3px}
+.range-labels{display:flex;justify-content:space-between;color:#8b96a5;font-size:9px}
+.tiny{font-size:10px;line-height:1.5}
+.threshold-card .tiny{margin:8px 0 0}
+.metrics-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:13px;margin-bottom:20px}
+.metric-card,.panel{background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow)}
+.metric-card{padding:17px 18px}
+.metric-label{color:#8591a1;display:flex;justify-content:space-between}
+.metric-value{font:800 26px Manrope,sans-serif;letter-spacing:-.8px;margin:12px 0 2px}
+.metric-note{font-size:10px;color:#99a2af}
+.metric-icon{font-size:11px}
+.amber{color:var(--amber)}
+.green{color:var(--green)}
+.metric-status{font-size:17px;letter-spacing:0}
+.workspace-grid{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(340px,.95fr);gap:16px;align-items:start}
+.panel{padding:23px}
+.panel-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:22px}
+h2{font:750 18px Manrope,sans-serif;letter-spacing:-.45px;margin:7px 0 5px}
+.panel-heading p{font-size:11px;margin:0}
+.step-tag{font:9px "DM Mono",monospace;color:#77869a;border:1px solid var(--line);padding:6px 8px;border-radius:5px;white-space:nowrap}
+.form-section-title{color:#718094;border-bottom:1px solid var(--line);padding-bottom:9px;margin-bottom:13px}
+.section-spaced{margin-top:24px}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:13px 14px}
+label{display:block;color:#536176;font-size:10px;font-weight:600}
+label input,label select{display:block;width:100%;height:39px;border:1px solid #e0e5eb;border-radius:6px;background:#fff;color:#26364a;padding:0 10px;margin-top:7px;outline:none;font-size:11px;transition:.2s}
+label input:focus,label select:focus{border-color:#64aaa4;box-shadow:0 0 0 3px #087e7810}
+label input::placeholder{color:#b1bac5}
+.required{color:#c66c5c}
+.ratio-box{display:flex;justify-content:space-between;align-items:center;padding:12px 13px;margin-top:17px;background:#f4f8f8;border:1px solid #e4eeee;border-radius:7px}
+.ratio-label{display:block;color:#557b7a}
+.ratio-box small{display:block;color:#89999b;font-size:9px;margin-top:4px}
+.ratio-box strong{font:700 18px Manrope,sans-serif;color:var(--teal)}
+.form-footer{display:flex;justify-content:space-between;align-items:center;margin-top:18px}
+.error-message{color:var(--red);font-size:11px;margin-top:10px;min-height:0}
+.result-panel{min-height:590px}
+.result-orb{width:32px;height:32px;display:grid;place-items:center;border-radius:50%;background:#e8f4f2;color:var(--teal);font-size:17px}
+.empty-state{min-height:420px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:30px}
+.empty-graphic{font:100px Manrope,sans-serif;color:#dceae8;line-height:1;margin-bottom:18px}
+.empty-state strong{font:700 13px Manrope,sans-serif}
+.empty-state p{font-size:10px;color:#8b96a5;line-height:1.7;max-width:220px}
+.hidden{display:none!important}
+.probability-head{display:flex;align-items:center;justify-content:space-between}
+.risk-badge{font:9px "DM Mono",monospace;padding:6px 9px;border-radius:30px;background:#edf2f6;color:#66758a}
+.risk-badge.low{background:#e6f4ef;color:#14745f}
+.risk-badge.medium{background:#fff3df;color:#9a671c}
+.risk-badge.high{background:#fbeaea;color:#ad4545}
+.probability-number{font:800 49px Manrope,sans-serif;letter-spacing:-2px;margin:7px 0}
+.probability-number small{font-size:20px;color:#8995a4;margin-left:3px}
+.probability-track{height:7px;border-radius:9px;background:#edf0f3;overflow:hidden}
+.probability-track div{height:100%;width:0;background:var(--teal);border-radius:9px;transition:width .35s}
+.decision-row{display:flex;align-items:center;justify-content:space-between;padding:16px 0}
+.decision-row strong{display:block;font:800 22px Manrope,sans-serif;margin-top:5px}
+.decision-mark{width:37px;height:37px;border-radius:50%;display:grid;place-items:center;background:#e6f4ef;color:#14745f;font-size:17px}
+.decision-mark.reject{background:#fbeaea;color:#ad4545}
+.result-threshold{display:flex;justify-content:space-between;color:#647287;font-size:10px}
+.result-threshold strong{color:#24364c}
+.divider{height:1px;background:var(--line);margin:17px 0}
+.explanation-list{margin-top:10px;display:grid;gap:9px}
+.explanation-item{display:grid;grid-template-columns:minmax(0,1fr) 100px;gap:9px;align-items:center;font-size:10px}
+.explanation-name{color:#526176;overflow-wrap:anywhere}
+.impact-track{height:5px;border-radius:5px;background:#eef1f4;overflow:hidden}
+.impact-track span{display:block;height:100%;border-radius:5px}
+.impact-track .positive{background:#c96b61}
+.impact-track .negative{background:#3b9c86}
+.explanation-direction{font:8px "DM Mono",monospace;color:#8995a4;margin-top:3px}
+.whatif-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
+.whatif-result{margin-top:10px;padding:11px;background:#f4f8f8;border-radius:6px;font-size:10px;line-height:1.6}
+.batch-panel,.history-panel{margin-top:17px}
+.upload-row{display:flex;align-items:center;gap:14px;padding:17px;border:1px dashed #cfd8e1;border-radius:8px;background:#fafcfd}
+.upload-icon{width:37px;height:37px;display:grid;place-items:center;background:#e8f3f2;color:var(--teal);border-radius:8px;font-size:20px}
+.upload-copy{flex:1}
+.upload-copy strong,.upload-copy span,.upload-copy small{display:block}
+.upload-copy strong{font-size:11px}
+.upload-copy span{font-size:10px;color:#6e7d90;margin-top:4px}
+.upload-copy small{font-size:9px;color:#9aa4b1;margin-top:3px}
+.file-button{white-space:nowrap}
+.batch-actions{display:flex;justify-content:space-between;align-items:center;margin-top:14px}
+.batch-file{font-size:10px;color:var(--teal);margin-top:10px}
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;white-space:nowrap}
+th{text-align:left;font:9px "DM Mono",monospace;letter-spacing:.6px;color:#8994a3;background:#fafbfd;padding:12px 10px;border-bottom:1px solid var(--line)}
+td{padding:13px 10px;border-bottom:1px solid #eff1f4;font-size:10px;color:#526176}
+tbody tr:last-child td{border-bottom:0}
+.table-empty{text-align:center;color:#9aa4b1;padding:28px}
+.table-risk{padding:5px 8px;border-radius:20px;font:9px "DM Mono",monospace}
+.table-risk.low{background:#e6f4ef;color:#14745f}
+.table-risk.medium{background:#fff3df;color:#9a671c}
+.table-risk.high{background:#fbeaea;color:#ad4545}
+.decision-approved{color:#16816b;font-weight:700}
+.decision-rejected{color:#b94b4b;font-weight:700}
+.footer{display:flex;justify-content:space-between;gap:15px;padding:23px 2px;color:#9aa4b1;font:9px "DM Mono",monospace}
+.footer b{color:#6b9d98}
+.toast{position:fixed;right:25px;bottom:24px;background:#17263c;color:#fff;padding:12px 16px;border-radius:8px;font-size:11px;box-shadow:var(--shadow);opacity:0;transform:translateY(8px);pointer-events:none;transition:.25s;z-index:20;max-width:360px}
+.toast.show{opacity:1;transform:translateY(0)}
+
+@media(max-width:1120px){
+  .main{padding:0 25px 25px}
+  .sidebar{width:215px}
+  .main{margin-left:215px}
+  .workspace-grid{grid-template-columns:1fr}
+  .result-panel{min-height:0}
+  .empty-state{min-height:280px}
+  .metrics-grid{grid-template-columns:repeat(2,1fr)}
+}
+@media(max-width:700px){
+  .sidebar{position:static;width:auto;height:auto;padding:14px 17px}
+  .brand{margin:0;font-size:18px}
+  .brand-mark{width:30px;height:30px}
+  .side-label,.nav,.sidebar-bottom{display:none}
+  .main{margin:0;padding:0 15px 20px}
+  .topbar{height:65px}
+  .live-pill{display:none}
+  .welcome-row{align-items:stretch;flex-direction:column;padding:27px 0 19px}
+  .threshold-card{width:100%}
+  .metrics-grid{gap:8px}
+  .metric-card{padding:13px}
+  .metric-value{font-size:22px}
+  .metric-label{font-size:8px}
+  .panel{padding:17px}
+  .form-grid{gap:12px 9px}
+  label{font-size:9px}
+  label input,label select{font-size:10px;padding:0 7px}
+  .panel-heading{margin-bottom:17px}
+  .upload-row{align-items:flex-start;flex-wrap:wrap}
+  .upload-copy{min-width:calc(100% - 55px)}
+  .file-button{margin-left:51px}
+  .batch-actions{align-items:flex-start;gap:12px;flex-direction:column}
+  .footer{flex-direction:column}
+  .top-actions .button{padding:8px 10px}
+  .form-footer{gap:10px;align-items:flex-end}
+  .form-footer .button{font-size:10px;padding:10px}
+  .whatif-grid{grid-template-columns:1fr 1fr}
+}
+@media(max-width:390px){
+  .form-grid{grid-template-columns:1fr}
+  .metrics-grid{grid-template-columns:1fr 1fr}
+  .probability-number{font-size:42px}
+}
+</style>
 </head>
+
 <body>
-  <div class="app-shell">
-    <aside class="sidebar">
-      <a class="brand" href="#"><span class="brand-mark">C</span><span>credence<span class="brand-sub">RISK INTELLIGENCE</span></span></a>
-      <div class="side-label">WORKSPACE</div>
-      <nav class="nav">
-        <a class="nav-link active" href="#overview"><span class="nav-icon">◫</span> Overview</a>
-        <a class="nav-link" href="#assessment"><span class="nav-icon">＋</span> New assessment</a>
-        <a class="nav-link" href="#batch"><span class="nav-icon">⇧</span> Batch analysis</a>
-        <a class="nav-link" href="#history"><span class="nav-icon">◷</span> Prediction history</a>
-      </nav>
-      <div class="sidebar-bottom">
-        <div class="api-card">
-          <span class="status-dot" id="apiDot"></span>
-          <div><strong id="apiStatus">Checking API</strong><small id="apiMessage">Connecting to prediction service</small></div>
+<div class="app-shell">
+
+  <aside class="sidebar">
+    <a class="brand" href="#">
+      <span class="brand-mark">C</span>
+      <span>credence<span class="brand-sub">RISK INTELLIGENCE</span></span>
+    </a>
+
+    <div class="side-label">WORKSPACE</div>
+
+    <nav class="nav">
+      <a class="nav-link active" href="#overview"><span class="nav-icon">◫</span> Overview</a>
+      <a class="nav-link" href="#assessment"><span class="nav-icon">＋</span> New assessment</a>
+      <a class="nav-link" href="#batch"><span class="nav-icon">⇧</span> Batch analysis</a>
+      <a class="nav-link" href="#history"><span class="nav-icon">◷</span> Prediction history</a>
+    </nav>
+
+    <div class="sidebar-bottom">
+      <div class="api-card">
+        <span class="status-dot" id="apiDot"></span>
+        <div>
+          <strong id="apiStatus">Checking API</strong>
+          <small id="apiMessage">Connecting to prediction service</small>
         </div>
-        <div class="side-foot">CREDIT RISK MODEL <span>v1.0.0</span></div>
       </div>
-    </aside>
+      <div class="side-foot">CREDIT RISK MODEL <span>v1.0.0</span></div>
+    </div>
+  </aside>
 
-    <main class="main">
-      <header class="topbar">
-        <div><div class="eyebrow">CREDIT DECISION PLATFORM</div><div class="page-title">Risk overview</div></div>
-        <div class="top-actions"><span class="live-pill"><i></i> LIVE WORKSPACE</span><button class="button button-primary button-small" onclick="document.querySelector('#assessment').scrollIntoView({behavior:'smooth'})">＋ New assessment</button></div>
-      </header>
+  <main class="main">
 
-      <section class="welcome-row" id="overview">
-        <div><div class="eyebrow">INTELLIGENCE / OVERVIEW</div><h1>Make every credit<br><em>decision count.</em></h1><p class="muted">Evaluate applicant risk, understand model signals, and explore alternative lending scenarios.</p></div>
-        <div class="threshold-card"><div class="eyebrow">DECISION THRESHOLD</div><div class="threshold-big"><span id="thresholdValue">50</span><small>%</small></div><input id="globalThreshold" type="range" min="1" max="99" value="50"><div class="range-labels"><span>More approvals</span><span>More cautious</span></div><p class="tiny muted">Used for approve / reject classification.</p></div>
-      </section>
+    <header class="topbar">
+      <div>
+        <div class="eyebrow">CREDIT DECISION PLATFORM</div>
+        <div class="page-title">Risk overview</div>
+      </div>
 
-      <section class="metrics-grid">
-        <article class="metric-card"><div class="metric-label">TOTAL ASSESSMENTS <span>↗</span></div><div class="metric-value" id="totalAssessments">0</div><div class="metric-note">Saved in this browser</div></article>
-        <article class="metric-card"><div class="metric-label">HIGH-RISK CASES <span class="metric-icon amber">◆</span></div><div class="metric-value" id="highRiskCount">0</div><div class="metric-note">Based on model predictions</div></article>
-        <article class="metric-card"><div class="metric-label">APPROVAL RATE <span class="metric-icon green">↗</span></div><div class="metric-value" id="approvalRate">—</div><div class="metric-note">Current saved history</div></article>
-        <article class="metric-card"><div class="metric-label">MODEL STATUS <span class="metric-icon green">●</span></div><div class="metric-value metric-status" id="modelStatus">Checking</div><div class="metric-note">FastAPI connection</div></article>
-      </section>
+      <div class="top-actions">
+        <span class="live-pill"><i></i> LIVE WORKSPACE</span>
+        <button class="button button-primary button-small"
+          onclick="document.querySelector('#assessment').scrollIntoView({behavior:'smooth'})">
+          ＋ New assessment
+        </button>
+      </div>
+    </header>
 
-      <section class="workspace-grid" id="assessment">
-        <div class="panel form-panel">
-          <div class="panel-heading"><div><div class="eyebrow">01 / APPLICANT PROFILE</div><h2>New credit assessment</h2><p class="muted">Enter the applicant and loan details below.</p></div><span class="step-tag">FORM 01</span></div>
-          <form id="creditForm">
-            <div class="form-section-title">PERSONAL INFORMATION</div>
-            <div class="form-grid">
-              <label>Applicant age <span class="required">*</span><input name="person_age" type="number" min="18" max="100" placeholder="e.g. 29" required></label>
-              <label>Annual income ($) <span class="required">*</span><input name="person_income" type="number" min="1" step="0.01" placeholder="e.g. 65000" required></label>
-              <label>Employment length (years) <span class="required">*</span><input name="person_emp_length" type="number" min="0" max="100" step="0.1" placeholder="e.g. 4" required></label>
-              <label>Home ownership <span class="required">*</span><select name="person_home_ownership" required><option value="">Select ownership</option><option>RENT</option><option>OWN</option><option>MORTGAGE</option><option>OTHER</option></select></label>
-            </div>
-            <div class="form-section-title section-spaced">LOAN DETAILS</div>
-            <div class="form-grid">
-              <label>Loan amount ($) <span class="required">*</span><input name="loan_amnt" id="loanAmount" type="number" min="1" step="0.01" placeholder="e.g. 12000" required></label>
-              <label>Interest rate (%) <span class="required">*</span><input name="loan_int_rate" type="number" min="0" max="100" step="0.01" placeholder="e.g. 11.5" required></label>
-              <label>Loan intent <span class="required">*</span><select name="loan_intent" required><option value="">Select purpose</option><option>PERSONAL</option><option>EDUCATION</option><option>MEDICAL</option><option>VENTURE</option><option>HOMEIMPROVEMENT</option><option>DEBTCONSOLIDATION</option></select></label>
-              <label>Loan grade <span class="required">*</span><select name="loan_grade" required><option value="">Select grade</option><option>A</option><option>B</option><option>C</option><option>D</option><option>E</option><option>F</option><option>G</option></select></label>
-              <label>Previous default on file <span class="required">*</span><select name="cb_person_default_on_file" required><option value="">Select answer</option><option value="Y">Yes</option><option value="N">No</option></select></label>
-              <label>Credit history length (years) <span class="required">*</span><input name="cb_person_cred_hist_length" type="number" min="0" max="100" step="0.1" placeholder="e.g. 5" required></label>
-            </div>
-            <div class="ratio-box"><div><span class="ratio-label">LOAN-TO-INCOME RATIO</span><small>Automatically calculated · Loan amount ÷ Annual income</small></div><strong id="ratioValue">—</strong></div>
-            <div class="form-footer"><span class="tiny muted">All fields are required.</span><button class="button button-primary" id="predictBtn" type="submit">Run risk assessment <span>→</span></button></div>
-          </form>
-          <div class="error-message" id="formError" role="alert"></div>
-        </div>
+    <section class="welcome-row" id="overview">
+      <div>
+        <div class="eyebrow">INTELLIGENCE / OVERVIEW</div>
+        <h1>Make every credit<br><em>decision count.</em></h1>
+        <p class="muted">Evaluate applicant risk, understand model signals, and explore alternative lending scenarios.</p>
+      </div>
 
-        <div class="panel result-panel" id="results">
-          <div class="panel-heading"><div><div class="eyebrow">02 / MODEL OUTPUT</div><h2>Assessment result</h2><p class="muted">Your prediction will appear here.</p></div><span class="result-orb">✳</span></div>
-          <div class="empty-state" id="emptyState"><div class="empty-graphic">⌁</div><strong>Awaiting applicant data</strong><p>Complete the form and run an assessment to see the model's prediction and risk signals.</p></div>
-          <div id="resultContent" class="hidden">
-            <div class="probability-head"><span class="eyebrow">DEFAULT PROBABILITY</span><span class="risk-badge" id="riskBadge">—</span></div>
-            <div class="probability-number"><span id="probabilityValue">0.0</span><small>%</small></div>
-            <div class="probability-track"><div id="probabilityBar"></div></div>
-            <div class="decision-row"><div><span class="eyebrow">MODEL DECISION</span><strong id="decisionValue">—</strong></div><div class="decision-mark" id="decisionMark">—</div></div>
-            <div class="result-threshold"><label for="resultThreshold">Decision threshold</label><strong id="resultThresholdValue">50%</strong></div>
-            <input id="resultThreshold" type="range" min="1" max="99" value="50">
-            <p class="tiny muted">Changing the threshold updates the decision using the latest probability.</p>
-            <div class="divider"></div>
-            <div class="eyebrow">WHY DID THE MODEL DECIDE THIS?</div>
-            <div id="explanationList" class="explanation-list"><p class="muted tiny">Run an assessment to request feature explanations.</p></div>
-            <div class="divider"></div>
-            <div class="eyebrow">WHAT-IF SCENARIO</div>
-            <p class="muted tiny">Change the loan amount or interest rate to compare a new scenario.</p>
-            <div class="whatif-grid">
-              <label>New loan amount ($)<input id="whatIfAmount" type="number" min="1" step="0.01" placeholder="Optional"></label>
-              <label>New interest rate (%)<input id="whatIfRate" type="number" min="0" max="100" step="0.01" placeholder="Optional"></label>
-            </div>
-            <button class="button button-outline button-full" id="whatIfBtn" type="button">Compare scenario →</button>
-            <div id="whatIfResult" class="whatif-result hidden"></div>
+      <div class="threshold-card">
+        <div class="eyebrow">DECISION THRESHOLD</div>
+        <div class="threshold-big"><span id="thresholdValue">50</span><small>%</small></div>
+        <input id="globalThreshold" type="range" min="1" max="99" value="50">
+        <div class="range-labels"><span>More approvals</span><span>More cautious</span></div>
+        <p class="tiny muted">Used for approve / reject classification.</p>
+      </div>
+    </section>
+
+    <section class="metrics-grid">
+      <article class="metric-card">
+        <div class="metric-label">TOTAL ASSESSMENTS <span>↗</span></div>
+        <div class="metric-value" id="totalAssessments">0</div>
+        <div class="metric-note">Saved in this browser</div>
+      </article>
+
+      <article class="metric-card">
+        <div class="metric-label">HIGH-RISK CASES <span class="metric-icon amber">◆</span></div>
+        <div class="metric-value" id="highRiskCount">0</div>
+        <div class="metric-note">Based on model predictions</div>
+      </article>
+
+      <article class="metric-card">
+        <div class="metric-label">APPROVAL RATE <span class="metric-icon green">↗</span></div>
+        <div class="metric-value" id="approvalRate">—</div>
+        <div class="metric-note">Current saved history</div>
+      </article>
+
+      <article class="metric-card">
+        <div class="metric-label">MODEL STATUS <span class="metric-icon green">●</span></div>
+        <div class="metric-value metric-status" id="modelStatus">Checking</div>
+        <div class="metric-note">FastAPI connection</div>
+      </article>
+    </section>
+
+    <section class="workspace-grid" id="assessment">
+
+      <div class="panel form-panel">
+
+        <div class="panel-heading">
+          <div>
+            <div class="eyebrow">01 / APPLICANT PROFILE</div>
+            <h2>New credit assessment</h2>
+            <p class="muted">Enter the applicant and loan details below.</p>
           </div>
+          <span class="step-tag">FORM 01</span>
         </div>
-      </section>
 
-      <section class="panel batch-panel" id="batch">
-        <div class="panel-heading"><div><div class="eyebrow">03 / PORTFOLIO OPERATIONS</div><h2>Batch prediction</h2><p class="muted">Score multiple applicants in one upload and export the results.</p></div><span class="step-tag">CSV</span></div>
-        <div class="upload-row"><div class="upload-icon">⇧</div><div class="upload-copy"><strong>Upload applicant data</strong><span>CSV format · Maximum 10 MB · Up to 10,000 rows</span><small>Required columns must match the API's feature names. Do not include the target column.</small></div><label class="button button-outline file-button">Choose CSV<input id="csvFile" type="file" accept=".csv,text/csv" hidden></label></div>
-        <div class="batch-file hidden" id="batchFileName"></div>
-        <div class="batch-actions"><span class="tiny muted" id="batchMessage">Your downloaded file will include a prediction for each row.</span><button class="button button-primary" id="batchBtn" disabled>Run batch prediction →</button></div>
-      </section>
+        <form id="creditForm">
 
-      <section class="panel history-panel" id="history">
-        <div class="panel-heading"><div><div class="eyebrow">04 / RECENT ACTIVITY</div><h2>Prediction history</h2><p class="muted">Assessments saved locally in this browser.</p></div><button class="button button-quiet button-small" id="clearHistory">Clear history</button></div>
-        <div class="table-wrap"><table><thead><tr><th>DATE & TIME</th><th>APPLICANT</th><th>LOAN AMOUNT</th><th>DEFAULT PROBABILITY</th><th>RISK</th><th>DECISION</th></tr></thead><tbody id="historyBody"><tr><td colspan="6" class="table-empty">No predictions yet. Your completed assessments will appear here.</td></tr></tbody></table></div>
-      </section>
-      <footer class="footer"><span>CREDENCE <b>·</b> CREDIT RISK INTELLIGENCE</span><span>Decision support only · Validate model outputs before real-world use</span></footer>
-    </main>
-  </div>
-  <div class="toast" id="toast" role="status"></div>
-  <script src="app.js"></script>
+          <div class="form-section-title">PERSONAL INFORMATION</div>
+
+          <div class="form-grid">
+            <label>
+              Applicant age <span class="required">*</span>
+              <input name="person_age" type="number" min="18" max="100" placeholder="e.g. 29" required>
+            </label>
+
+            <label>
+              Annual income ($) <span class="required">*</span>
+              <input name="person_income" type="number" min="1" step="0.01" placeholder="e.g. 65000" required>
+            </label>
+
+            <label>
+              Employment length (years) <span class="required">*</span>
+              <input name="person_emp_length" type="number" min="0" max="100" step="0.1" placeholder="e.g. 4" required>
+            </label>
+
+            <label>
+              Home ownership <span class="required">*</span>
+              <select name="person_home_ownership" required>
+                <option value="">Select ownership</option>
+                <option>RENT</option>
+                <option>OWN</option>
+                <option>MORTGAGE</option>
+                <option>OTHER</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="form-section-title section-spaced">LOAN DETAILS</div>
+
+          <div class="form-grid">
+            <label>
+              Loan amount ($) <span class="required">*</span>
+              <input name="loan_amnt" id="loanAmount" type="number" min="1" step="0.01" placeholder="e.g. 12000" required>
+            </label>
+
+            <label>
+              Interest rate (%) <span class="required">*</span>
+              <input name="loan_int_rate" type="number" min="0" max="100" step="0.01" placeholder="e.g. 11.5" required>
+            </label>
+
+            <label>
+              Loan intent <span class="required">*</span>
+              <select name="loan_intent" required>
+                <option value="">Select purpose</option>
+                <option>PERSONAL</option>
+                <option>EDUCATION</option>
+                <option>MEDICAL</option>
+                <option>VENTURE</option>
+                <option>HOMEIMPROVEMENT</option>
+                <option>DEBTCONSOLIDATION</option>
+              </select>
+            </label>
+
+            <label>
+              Loan grade <span class="required">*</span>
+              <select name="loan_grade" required>
+                <option value="">Select grade</option>
+                <option>A</option>
+                <option>B</option>
+                <option>C</option>
+                <option>D</option>
+                <option>E</option>
+                <option>F</option>
+                <option>G</option>
+              </select>
+            </label>
+
+            <label>
+              Previous default on file <span class="required">*</span>
+              <select name="cb_person_default_on_file" required>
+                <option value="">Select answer</option>
+                <option value="Y">Yes</option>
+                <option value="N">No</option>
+              </select>
+            </label>
+
+            <label>
+              Credit history length (years) <span class="required">*</span>
+              <input name="cb_person_cred_hist_length" type="number" min="0" max="100" step="0.1" placeholder="e.g. 5" required>
+            </label>
+          </div>
+
+          <div class="ratio-box">
+            <div>
+              <span class="ratio-label">LOAN-TO-INCOME RATIO</span>
+              <small>Automatically calculated · Loan amount ÷ Annual income</small>
+            </div>
+            <strong id="ratioValue">—</strong>
+          </div>
+
+          <div class="form-footer">
+            <span class="tiny muted">All fields are required.</span>
+            <button class="button button-primary" id="predictBtn" type="submit">
+              Run risk assessment <span>→</span>
+            </button>
+          </div>
+
+        </form>
+
+        <div class="error-message" id="formError" role="alert"></div>
+      </div>
+
+      <div class="panel result-panel" id="results">
+
+        <div class="panel-heading">
+          <div>
+            <div class="eyebrow">02 / MODEL OUTPUT</div>
+            <h2>Assessment result</h2>
+            <p class="muted">Your prediction will appear here.</p>
+          </div>
+          <span class="result-orb">✳</span>
+        </div>
+
+        <div class="empty-state" id="emptyState">
+          <div class="empty-graphic">⌁</div>
+          <strong>Awaiting applicant data</strong>
+          <p>Complete the form and run an assessment to see the model's prediction and risk signals.</p>
+        </div>
+
+        <div id="resultContent" class="hidden">
+
+          <div class="probability-head">
+            <span class="eyebrow">DEFAULT PROBABILITY</span>
+            <span class="risk-badge" id="riskBadge">—</span>
+          </div>
+
+          <div class="probability-number">
+            <span id="probabilityValue">0.0</span><small>%</small>
+          </div>
+
+          <div class="probability-track">
+            <div id="probabilityBar"></div>
+          </div>
+
+          <div class="decision-row">
+            <div>
+              <span class="eyebrow">MODEL DECISION</span>
+              <strong id="decisionValue">—</strong>
+            </div>
+            <div class="decision-mark" id="decisionMark">—</div>
+          </div>
+
+          <div class="result-threshold">
+            <label for="resultThreshold">Decision threshold</label>
+            <strong id="resultThresholdValue">50%</strong>
+          </div>
+
+          <input id="resultThreshold" type="range" min="1" max="99" value="50">
+
+          <p class="tiny muted">Changing the threshold updates the decision using the latest probability.</p>
+
+          <div class="divider"></div>
+
+          <div class="eyebrow">WHY DID THE MODEL DECIDE THIS?</div>
+
+          <div id="explanationList" class="explanation-list">
+            <p class="muted tiny">Run an assessment to request feature explanations.</p>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="eyebrow">WHAT-IF SCENARIO</div>
+
+          <p class="muted tiny">
+            Change the loan amount or interest rate to compare a new scenario.
+          </p>
+
+          <div class="whatif-grid">
+            <label>
+              New loan amount ($)
+              <input id="whatIfAmount" type="number" min="1" step="0.01" placeholder="Optional">
+            </label>
+
+            <label>
+              New interest rate (%)
+              <input id="whatIfRate" type="number" min="0" max="100" step="0.01" placeholder="Optional">
+            </label>
+          </div>
+
+          <button class="button button-outline button-full" id="whatIfBtn" type="button">
+            Compare scenario →
+          </button>
+
+          <div id="whatIfResult" class="whatif-result hidden"></div>
+
+        </div>
+      </div>
+    </section>
+
+    <section class="panel batch-panel" id="batch">
+
+      <div class="panel-heading">
+        <div>
+          <div class="eyebrow">03 / PORTFOLIO OPERATIONS</div>
+          <h2>Batch prediction</h2>
+          <p class="muted">Score multiple applicants in one upload and export the results.</p>
+        </div>
+        <span class="step-tag">CSV</span>
+      </div>
+
+      <div class="upload-row">
+        <div class="upload-icon">⇧</div>
+
+        <div class="upload-copy">
+          <strong>Upload applicant data</strong>
+          <span>CSV format · Maximum 10 MB · Up to 10,000 rows</span>
+          <small>Required columns must match the API's feature names. Do not include the target column.</small>
+        </div>
+
+        <label class="button button-outline file-button">
+          Choose CSV
+          <input id="csvFile" type="file" accept=".csv,text/csv" hidden>
+        </label>
+      </div>
+
+      <div class="batch-file hidden" id="batchFileName"></div>
+
+      <div class="batch-actions">
+        <span class="tiny muted" id="batchMessage">
+          Your downloaded file will include a prediction for each row.
+        </span>
+        <button class="button button-primary" id="batchBtn" disabled>
+          Run batch prediction →
+        </button>
+      </div>
+
+    </section>
+
+    <section class="panel history-panel" id="history">
+
+      <div class="panel-heading">
+        <div>
+          <div class="eyebrow">04 / RECENT ACTIVITY</div>
+          <h2>Prediction history</h2>
+          <p class="muted">Assessments saved locally in this browser.</p>
+        </div>
+
+        <button class="button button-quiet button-small" id="clearHistory">
+          Clear history
+        </button>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>DATE & TIME</th>
+              <th>APPLICANT</th>
+              <th>LOAN AMOUNT</th>
+              <th>DEFAULT PROBABILITY</th>
+              <th>RISK</th>
+              <th>DECISION</th>
+            </tr>
+          </thead>
+
+          <tbody id="historyBody">
+            <tr>
+              <td colspan="6" class="table-empty">
+                No predictions yet. Your completed assessments will appear here.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+    </section>
+
+    <footer class="footer">
+      <span>CREDENCE <b>·</b> CREDIT RISK INTELLIGENCE</span>
+      <span>Decision support only · Validate model outputs before real-world use</span>
+    </footer>
+
+  </main>
+</div>
+
+<div class="toast" id="toast" role="status"></div>
+
+<script src="app.js"></script>
+
 </body>
 </html>
