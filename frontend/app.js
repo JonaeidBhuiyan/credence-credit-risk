@@ -1,295 +1,630 @@
-const API_BASE = "https://credence-credit-risk-2.onrender.com/";
+
+const API_BASE = "https://credence-credit-risk-2.onrender.com";
+
+// ==========================================
+// 1. DOM HELPERS
+// ==========================================
+
 const $ = (selector) => document.querySelector(selector);
-const form = $("#creditForm");
-let latestApplication = null;
-let latestProbability = null;
-let latestExplanation = [];
-let currentThreshold = 0.50;
-let selectedCsv = null;
 
-function showToast(message) {
-  const toast = $("#toast");
-  toast.textContent = message;
-  toast.classList.add("show");
-  clearTimeout(showToast.timer);
-  showToast.timer = setTimeout(() => toast.classList.remove("show"), 3300);
+let currentPrediction = null;
+let currentExplanation = null;
+let currentThreshold = 0.5;
+
+
+// ==========================================
+// 2. API STATUS / HEALTH CHECK
+// ==========================================
+
+function setApiStatus(isOnline, message = "") {
+    const apiDot = $("#apiDot");
+    const apiStatus = $("#apiStatus");
+    const apiMessage = $("#apiMessage");
+    const modelStatus = $("#modelStatus");
+
+    if (apiDot) {
+        apiDot.classList.toggle("online", isOnline);
+        apiDot.classList.toggle("offline", !isOnline);
+    }
+
+    if (apiStatus) {
+        apiStatus.textContent = isOnline
+            ? "API Connected"
+            : "API Unavailable";
+    }
+
+    if (apiMessage) {
+        apiMessage.textContent = message;
+    }
+
+    if (modelStatus) {
+        modelStatus.textContent = isOnline
+            ? "Online"
+            : "Offline";
+    }
 }
 
-function setApiStatus(online, message) {
-  $("#apiDot").className = `status-dot ${online ? "online" : "offline"}`;
-  $("#apiStatus").textContent = online ? "API connected" : "API unavailable";
-  $("#apiMessage").textContent = message;
-  $("#modelStatus").textContent = online ? "Online" : "Offline";
-}
 
 async function checkHealth() {
-  try {
-    const response = await fetch(`${API_BASE}/health`);
-    if (!response.ok) throw new Error("Health endpoint returned an error");
-    const data = await response.json();
-    setApiStatus(Boolean(data.model_loaded), data.model_loaded ? "Model loaded and ready" : "API reachable · model not loaded");
-  } catch {
-    setApiStatus(false, "Start the FastAPI backend");
-  }
+    try {
+        const response = await fetch(`${API_BASE}/health`);
+
+        if (!response.ok) {
+            throw new Error(`Health check failed: ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        const isOnline =
+            data.status === "healthy" &&
+            data.model_loaded === true;
+
+        setApiStatus(
+            isOnline,
+            isOnline
+                ? "Model loaded and ready"
+                : "API reachable · model not loaded"
+        );
+
+    } catch (error) {
+        console.error("Health check error:", error);
+
+        setApiStatus(
+            false,
+            `Connection failed: ${error.message}`
+        );
+    }
 }
+
+
+// ==========================================
+// 3. APPLICATION INPUTS
+// ==========================================
 
 function readApplication() {
-  const data = Object.fromEntries(new FormData(form).entries());
-  data.person_age = Number(data.person_age);
-  data.person_income = Number(data.person_income);
-  data.person_emp_length = Number(data.person_emp_length);
-  data.loan_amnt = Number(data.loan_amnt);
-  data.loan_int_rate = Number(data.loan_int_rate);
-  data.cb_person_cred_hist_length = Number(data.cb_person_cred_hist_length);
-  if (data.person_age < 18) throw new Error("Applicant age must be at least 18.");
-  if (data.person_income <= 0) throw new Error("Annual income must be greater than zero.");
-  if (data.loan_amnt <= 0) throw new Error("Loan amount must be greater than zero.");
-  if (data.person_emp_length < 0 || data.cb_person_cred_hist_length < 0) throw new Error("Employment and credit history lengths cannot be negative.");
-  if (data.loan_int_rate < 0 || data.loan_int_rate > 100) throw new Error("Interest rate must be between 0 and 100.");
-  return data;
+    const form = $("#creditForm");
+
+    if (!form) {
+        throw new Error("Credit form not found.");
+    }
+
+    const formData = new FormData(form);
+    const data = {};
+
+    for (const [key, value] of formData.entries()) {
+        if (value.trim() === "") {
+            throw new Error(`Please complete the ${key} field.`);
+        }
+
+        const numericValue = Number(value);
+
+        data[key] = Number.isNaN(numericValue)
+            ? value
+            : numericValue;
+    }
+
+    return data;
 }
+
+
+// ==========================================
+// 4. CREDIT UTILIZATION RATIO
+// ==========================================
 
 function updateRatio() {
-  const income = Number(form.elements.person_income.value);
-  const amount = Number(form.elements.loan_amnt.value);
-  $("#ratioValue").textContent = income > 0 && amount > 0 ? `${(amount / income).toFixed(3)} (${(amount / income * 100).toFixed(1)}%)` : "—";
+    const balance = Number($("#balance")?.value || 0);
+    const limit = Number($("#limit")?.value || 0);
+
+    const ratio = limit > 0
+        ? (balance / limit) * 100
+        : 0;
+
+    const ratioElement = $("#utilizationRatio");
+
+    if (ratioElement) {
+        ratioElement.textContent = `${ratio.toFixed(1)}%`;
+    }
+
+    const progress = $("#utilizationProgress");
+
+    if (progress) {
+        progress.style.width = `${Math.min(ratio, 100)}%`;
+    }
 }
-form.addEventListener("input", updateRatio);
+
+
+// ==========================================
+// 5. RISK CLASSIFICATION
+// ==========================================
 
 function getRisk(probability) {
-  if (probability < 0.20) return "Low";
-  if (probability < 0.50) return "Medium";
-  return "High";
+    if (probability < 0.20) return "Low Risk";
+    if (probability < 0.50) return "Moderate Risk";
+    if (probability < 0.75) return "High Risk";
+
+    return "Very High Risk";
 }
+
 
 function getDecision(probability, threshold = currentThreshold) {
-  return probability >= threshold ? "Reject" : "Approve";
+    return probability >= threshold
+        ? "Default Risk"
+        : "Low Default Risk";
 }
 
-function renderDecision(probability, threshold = currentThreshold) {
-  const risk = getRisk(probability);
-  const decision = getDecision(probability, threshold);
-  $("#probabilityValue").textContent = (probability * 100).toFixed(1);
-  $("#probabilityBar").style.width = `${Math.min(100, Math.max(0, probability * 100))}%`;
-  $("#probabilityBar").style.background = risk === "High" ? "#bd5a55" : risk === "Medium" ? "#c38b37" : "#16816d";
-  $("#riskBadge").textContent = `${risk.toUpperCase()} RISK`;
-  $("#riskBadge").className = `risk-badge ${risk.toLowerCase()}`;
-  $("#decisionValue").textContent = decision;
-  $("#decisionMark").textContent = decision === "Approve" ? "✓" : "!";
-  $("#decisionMark").className = `decision-mark ${decision === "Reject" ? "reject" : ""}`;
-  $("#resultThresholdValue").textContent = `${Math.round(threshold * 100)}%`;
-  $("#resultThreshold").value = Math.round(threshold * 100);
-  $("#globalThreshold").value = Math.round(threshold * 100);
-  $("#thresholdValue").textContent = Math.round(threshold * 100);
+
+// ==========================================
+// 6. PREDICTION RESULT
+// ==========================================
+
+function renderDecision(result) {
+    currentPrediction = result;
+
+    const probability = Number(result.default_probability);
+    const nonDefaultProbability = Number(result.non_default_probability);
+
+    const defaultPercent = probability * 100;
+    const nonDefaultPercent = nonDefaultProbability * 100;
+
+    const risk = getRisk(probability);
+    const decision = getDecision(probability);
+
+    const resultPanel = $("#resultPanel");
+
+    if (resultPanel) {
+        resultPanel.hidden = false;
+        resultPanel.classList.add("visible");
+    }
+
+    const defaultElement = $("#defaultProbability");
+    if (defaultElement) {
+        defaultElement.textContent = `${defaultPercent.toFixed(2)}%`;
+    }
+
+    const nonDefaultElement = $("#nonDefaultProbability");
+    if (nonDefaultElement) {
+        nonDefaultElement.textContent = `${nonDefaultPercent.toFixed(2)}%`;
+    }
+
+    const riskElement = $("#riskLevel");
+    if (riskElement) {
+        riskElement.textContent = risk;
+    }
+
+    const decisionElement = $("#decision");
+    if (decisionElement) {
+        decisionElement.textContent = decision;
+    }
+
+    const gauge = $("#riskGauge");
+    if (gauge) {
+        gauge.style.setProperty("--risk", `${defaultPercent}%`);
+    }
+
+    const probabilityBar = $("#defaultBar");
+    if (probabilityBar) {
+        probabilityBar.style.width = `${defaultPercent}%`;
+    }
+
+    const nonDefaultBar = $("#nonDefaultBar");
+    if (nonDefaultBar) {
+        nonDefaultBar.style.width = `${nonDefaultPercent}%`;
+    }
+
+    const thresholdElement = $("#currentThreshold");
+    if (thresholdElement) {
+        thresholdElement.textContent =
+            `${(currentThreshold * 100).toFixed(0)}%`;
+    }
+
+    saveHistory(result);
 }
 
-function renderExplanation(items) {
-  const container = $("#explanationList");
-  if (!Array.isArray(items) || !items.length) {
-    container.innerHTML = '<p class="muted tiny">No feature explanation was returned by the API.</p>';
-    return;
-  }
-  const max = Math.max(...items.map(item => Math.abs(Number(item.impact) || 0)), 0.000001);
-  container.innerHTML = items.slice(0, 10).map(item => {
-    const impact = Number(item.impact) || 0;
-    const width = Math.max(3, Math.abs(impact) / max * 100);
-    const positive = impact > 0;
-    const direction = item.direction || (positive ? "Increases risk" : "Decreases risk");
-    return `<div class="explanation-item"><div><div class="explanation-name">${escapeHtml(item.feature)}</div><div class="explanation-direction">${escapeHtml(direction)} · ${impact.toFixed(4)}</div></div><div class="impact-track"><span class="${positive ? "positive" : "negative"}" style="width:${width}%"></span></div></div>`;
-  }).join("");
+
+// ==========================================
+// 7. EXPLANATION
+// ==========================================
+
+function renderExplanation(data) {
+    currentExplanation = data;
+
+    const container = $("#explanation");
+
+    if (!container) return;
+
+    container.innerHTML = "";
+
+    const factors =
+        data.feature_importance ||
+        data.top_features ||
+        data.explanations ||
+        [];
+
+    if (!Array.isArray(factors) || factors.length === 0) {
+        container.textContent = "No explanation available.";
+        return;
+    }
+
+    factors.forEach((item) => {
+        const name =
+            item.feature ||
+            item.name ||
+            item.feature_name ||
+            "Feature";
+
+        const value =
+            item.importance ??
+            item.contribution ??
+            item.value ??
+            0;
+
+        const row = document.createElement("div");
+        row.className = "explanation-item";
+
+        const nameElement = document.createElement("span");
+        nameElement.textContent = name;
+
+        const valueElement = document.createElement("span");
+        valueElement.textContent =
+            typeof value === "number"
+                ? value.toFixed(4)
+                : String(value);
+
+        row.append(nameElement, valueElement);
+        container.appendChild(row);
+    });
 }
+
+
+// ==========================================
+// 8. HTML ESCAPING
+// ==========================================
 
 function escapeHtml(value) {
-  return String(value).replace(/[&<>"']/g, char => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[char]));
+    return String(value).replace(/[&<>"']/g, (char) => {
+        const entities = {
+            "&": "&amp;",
+            "<": "&lt;",
+            ">": "&gt;",
+            '"': "&quot;",
+            "'": "&#039;"
+        };
+
+        return entities[char];
+    });
 }
+
+
+// ==========================================
+// 9. LOCAL STORAGE HISTORY
+// ==========================================
 
 function getHistory() {
-  try { return JSON.parse(localStorage.getItem("credence_history") || "[]"); }
-  catch { return []; }
+    try {
+        return JSON.parse(
+            localStorage.getItem("credenceHistory") || "[]"
+        );
+    } catch {
+        return [];
+    }
 }
 
-function saveHistory(application, result) {
-  const history = getHistory();
-  history.unshift({
-    date: new Date().toISOString(),
-    applicant: `Age ${application.person_age}`,
-    loan: application.loan_amnt,
-    probability: result.default_probability,
-    risk: getRisk(result.default_probability),
-    decision: getDecision(result.default_probability)
-  });
-  localStorage.setItem("credence_history", JSON.stringify(history.slice(0, 100)));
-  renderHistory();
+
+function saveHistory(result) {
+    const history = getHistory();
+
+    history.unshift({
+        probability: Number(result.default_probability),
+        risk: getRisk(Number(result.default_probability)),
+        date: new Date().toLocaleString()
+    });
+
+    localStorage.setItem(
+        "credenceHistory",
+        JSON.stringify(history.slice(0, 10))
+    );
+
+    renderHistory();
 }
+
 
 function renderHistory() {
-  const history = getHistory();
-  $("#totalAssessments").textContent = history.length;
-  $("#highRiskCount").textContent = history.filter(item => item.risk === "High").length;
-  $("#approvalRate").textContent = history.length ? `${Math.round(history.filter(item => item.decision === "Approve").length / history.length * 100)}%` : "—";
-  $("#historyBody").innerHTML = history.length ? history.map(item => `
-    <tr>
-      <td>${new Date(item.date).toLocaleString()}</td>
-      <td>${escapeHtml(item.applicant)}</td>
-      <td>$${Number(item.loan).toLocaleString()}</td>
-      <td>${(Number(item.probability) * 100).toFixed(1)}%</td>
-      <td><span class="table-risk ${item.risk.toLowerCase()}">${item.risk}</span></td>
-      <td class="${item.decision === "Approve" ? "decision-approved" : "decision-rejected"}">${item.decision}</td>
-    </tr>`).join("") : '<tr><td colspan="6" class="table-empty">No predictions yet. Your completed assessments will appear here.</td></tr>';
-}
+    const container = $("#historyList");
 
-async function postJson(path, body) {
-  const response = await fetch(`${API_BASE}${path}`, {
-    method: "POST",
-    headers: {"Content-Type": "application/json"},
-    body: JSON.stringify(body)
-  });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    const detail = typeof data.detail === "string" ? data.detail : JSON.stringify(data.detail || data);
-    throw new Error(detail || `Request failed (${response.status})`);
-  }
-  return data;
-}
+    if (!container) return;
 
-form.addEventListener("submit", async event => {
-  event.preventDefault();
-  $("#formError").textContent = "";
-  let application;
-  try { application = readApplication(); }
-  catch (error) { $("#formError").textContent = error.message; return; }
+    const history = getHistory();
 
-  const button = $("#predictBtn");
-  button.disabled = true;
-  button.textContent = "Assessing applicant…";
-  try {
-    currentThreshold = Number($("#globalThreshold").value) / 100;
-    const result = await postJson("/predict", {application, threshold: currentThreshold});
-    latestApplication = application;
-    latestProbability = Number(result.default_probability);
-    $("#emptyState").classList.add("hidden");
-    $("#resultContent").classList.remove("hidden");
-    renderDecision(latestProbability, currentThreshold);
-    saveHistory(application, result);
-    $("#whatIfResult").classList.add("hidden");
-    $("#whatIfAmount").value = "";
-    $("#whatIfRate").value = "";
-    try {
-      const explanation = await postJson("/explain", {application, threshold: currentThreshold});
-      latestExplanation = explanation.explanation || [];
-      renderExplanation(latestExplanation);
-    } catch (error) {
-      latestExplanation = [];
-      renderExplanation([]);
-      showToast(`Prediction succeeded; explanation unavailable: ${error.message}`);
+    if (history.length === 0) {
+        container.textContent = "No prediction history yet.";
+        return;
     }
-    $("#results").scrollIntoView({behavior:"smooth", block:"start"});
-  } catch (error) {
-    $("#formError").textContent = error.message;
-    showToast("Prediction request failed. Check the API connection.");
-  } finally {
-    button.disabled = false;
-    button.innerHTML = 'Run risk assessment <span>→</span>';
-  }
-});
 
-function updateThreshold(value) {
-  currentThreshold = Number(value) / 100;
-  $("#thresholdValue").textContent = value;
-  $("#resultThresholdValue").textContent = `${value}%`;
-  if (latestProbability !== null) renderDecision(latestProbability, currentThreshold);
-  const history = getHistory();
-  if (history.length) {
-    history[0].decision = getDecision(history[0].probability, currentThreshold);
-    localStorage.setItem("credence_history", JSON.stringify(history));
-    renderHistory();
-  }
+    container.innerHTML = "";
+
+    history.forEach((item) => {
+        const row = document.createElement("div");
+        row.className = "history-item";
+
+        const risk = document.createElement("span");
+        risk.textContent = item.risk;
+
+        const probability = document.createElement("span");
+        probability.textContent =
+            `${(item.probability * 100).toFixed(2)}%`;
+
+        const date = document.createElement("small");
+        date.textContent = item.date;
+
+        row.append(risk, probability, date);
+        container.appendChild(row);
+    });
 }
-$("#globalThreshold").addEventListener("input", event => {
-  $("#resultThreshold").value = event.target.value;
-  updateThreshold(event.target.value);
-});
-$("#resultThreshold").addEventListener("input", event => {
-  $("#globalThreshold").value = event.target.value;
-  updateThreshold(event.target.value);
-});
 
-$("#whatIfBtn").addEventListener("click", async () => {
-  if (!latestApplication) return showToast("Run an assessment first.");
-  const amountValue = $("#whatIfAmount").value;
-  const rateValue = $("#whatIfRate").value;
-  if (!amountValue && !rateValue) return showToast("Enter a new loan amount or interest rate.");
-  const payload = {application: latestApplication, threshold: currentThreshold};
-  if (amountValue) payload.loan_amnt = Number(amountValue);
-  if (rateValue) payload.loan_int_rate = Number(rateValue);
-  if ((payload.loan_amnt && payload.loan_amnt <= 0) || (payload.loan_int_rate !== undefined && (payload.loan_int_rate < 0 || payload.loan_int_rate > 100))) return showToast("Check the what-if values.");
-  const button = $("#whatIfBtn");
-  button.disabled = true;
-  button.textContent = "Comparing…";
-  try {
-    const result = await postJson("/what-if", payload);
-    const original = result.original_prediction;
-    const scenario = result.what_if_prediction;
-    const delta = Number(result.probability_difference);
-    $("#whatIfResult").classList.remove("hidden");
-    $("#whatIfResult").innerHTML = `<strong>Scenario result: ${(scenario.default_probability * 100).toFixed(1)}% default probability · ${escapeHtml(getDecision(scenario.default_probability))}</strong><br>Original: ${(original.default_probability * 100).toFixed(1)}% · Change: ${delta > 0 ? "+" : ""}${(delta * 100).toFixed(2)} percentage points.`;
-  } catch (error) {
-    showToast(`What-if failed: ${error.message}`);
-  } finally {
-    button.disabled = false;
-    button.textContent = "Compare scenario →";
-  }
-});
 
-$("#csvFile").addEventListener("change", event => {
-  selectedCsv = event.target.files[0] || null;
-  $("#batchBtn").disabled = !selectedCsv;
-  $("#batchFileName").classList.toggle("hidden", !selectedCsv);
-  $("#batchFileName").textContent = selectedCsv ? `Selected: ${selectedCsv.name} · ${(selectedCsv.size / 1024).toFixed(1)} KB` : "";
-  $("#batchMessage").textContent = selectedCsv ? "Ready to upload this CSV for scoring." : "Your downloaded file will include a prediction for each row.";
-});
+// ==========================================
+// 10. API REQUEST HELPER
+// ==========================================
 
-$("#batchBtn").addEventListener("click", async () => {
-  if (!selectedCsv) return;
-  if (selectedCsv.size > 10 * 1024 * 1024) return showToast("CSV must be 10 MB or smaller.");
-  const button = $("#batchBtn");
-  button.disabled = true;
-  button.textContent = "Processing…";
-  try {
-    const data = new FormData();
-    data.append("file", selectedCsv);
-    data.append("threshold", String(currentThreshold));
-    const response = await fetch(`${API_BASE}/predict-batch`, {method:"POST", body:data});
+async function postJson(path, payload) {
+    const response = await fetch(`${API_BASE}${path}`, {
+        method: "POST",
+
+        headers: {
+            "Content-Type": "application/json"
+        },
+
+        body: JSON.stringify(payload)
+    });
+
+    const data = await response.json();
+
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(typeof errorData.detail === "string" ? errorData.detail : JSON.stringify(errorData.detail || "Batch request failed"));
+        throw new Error(
+            data.detail || `Request failed: ${response.status}`
+        );
     }
-    const blob = await response.blob();
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "credit_risk_predictions.csv";
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
-    $("#batchMessage").textContent = "Batch predictions downloaded successfully.";
-    showToast("Batch prediction file downloaded.");
-  } catch (error) {
-    showToast(`Batch prediction failed: ${error.message}`);
-    $("#batchMessage").textContent = "Upload failed. Check the CSV columns and API.";
-  } finally {
-    button.disabled = !selectedCsv;
-    button.textContent = "Run batch prediction →";
-  }
+
+    return data;
+}
+
+
+// ==========================================
+// 11. MAIN PREDICTION
+// ==========================================
+
+const creditForm = $("#creditForm");
+
+if (creditForm) {
+    creditForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+
+        const submitButton = creditForm.querySelector(
+            'button[type="submit"]'
+        );
+
+        try {
+            if (submitButton) {
+                submitButton.disabled = true;
+                submitButton.textContent = "Analyzing...";
+            }
+
+            const application = readApplication();
+
+            const result = await postJson(
+                "/predict",
+                application
+            );
+
+            renderDecision(result);
+
+            try {
+                const explanation = await postJson(
+                    "/explain",
+                    application
+                );
+
+                renderExplanation(explanation);
+
+            } catch (error) {
+                console.error("Explanation error:", error);
+            }
+
+        } catch (error) {
+            console.error("Prediction error:", error);
+            alert(error.message);
+
+        } finally {
+            if (submitButton) {
+                submitButton.disabled = false;
+                submitButton.textContent = "Analyze Credit Risk";
+            }
+        }
+    });
+}
+
+
+// ==========================================
+// 12. THRESHOLD CONTROL
+// ==========================================
+
+const thresholdSlider = $("#thresholdSlider");
+
+if (thresholdSlider) {
+    thresholdSlider.addEventListener("input", () => {
+        currentThreshold =
+            Number(thresholdSlider.value) / 100;
+
+        const valueElement = $("#thresholdValue");
+
+        if (valueElement) {
+            valueElement.textContent =
+                `${thresholdSlider.value}%`;
+        }
+
+        if (currentPrediction) {
+            const decision = getDecision(
+                Number(currentPrediction.default_probability),
+                currentThreshold
+            );
+
+            const decisionElement = $("#decision");
+
+            if (decisionElement) {
+                decisionElement.textContent = decision;
+            }
+        }
+    });
+}
+
+
+// ==========================================
+// 13. WHAT-IF ANALYSIS
+// ==========================================
+
+const whatIfButton = $("#whatIfButton");
+
+if (whatIfButton) {
+    whatIfButton.addEventListener("click", async () => {
+        try {
+            whatIfButton.disabled = true;
+
+            const application = readApplication();
+
+            const result = await postJson(
+                "/what-if",
+                application
+            );
+
+            const container = $("#whatIfResult");
+
+            if (container) {
+                container.textContent =
+                    JSON.stringify(result, null, 2);
+            }
+
+        } catch (error) {
+            console.error("What-if error:", error);
+            alert(error.message);
+
+        } finally {
+            whatIfButton.disabled = false;
+        }
+    });
+}
+
+
+// ==========================================
+// 14. BATCH PREDICTION
+// ==========================================
+
+const batchForm = $("#batchForm");
+
+if (batchForm) {
+    batchForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+
+        const fileInput = $("#batchFile");
+
+        if (!fileInput || !fileInput.files.length) {
+            alert("Please select a CSV file.");
+            return;
+        }
+
+        const formData = new FormData();
+
+        formData.append("file", fileInput.files[0]);
+
+        const button = batchForm.querySelector(
+            'button[type="submit"]'
+        );
+
+        try {
+            if (button) {
+                button.disabled = true;
+                button.textContent = "Processing...";
+            }
+
+            const response = await fetch(
+                `${API_BASE}/predict-batch`,
+                {
+                    method: "POST",
+                    body: formData
+                }
+            );
+
+            if (!response.ok) {
+                const errorData = await response.json();
+
+                throw new Error(
+                    errorData.detail || "Batch prediction failed."
+                );
+            }
+
+            const blob = await response.blob();
+
+            const downloadUrl = URL.createObjectURL(blob);
+
+            const link = document.createElement("a");
+
+            link.href = downloadUrl;
+            link.download = "credence_predictions.csv";
+
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+
+            URL.revokeObjectURL(downloadUrl);
+
+        } catch (error) {
+            console.error("Batch error:", error);
+            alert(error.message);
+
+        } finally {
+            if (button) {
+                button.disabled = false;
+                button.textContent = "Run Batch Prediction";
+            }
+        }
+    });
+}
+
+
+// ==========================================
+// 15. CLEAR HISTORY
+// ==========================================
+
+const clearHistoryButton = $("#clearHistory");
+
+if (clearHistoryButton) {
+    clearHistoryButton.addEventListener("click", () => {
+        localStorage.removeItem("credenceHistory");
+        renderHistory();
+    });
+}
+
+
+// ==========================================
+// 16. INPUT LISTENERS
+// ==========================================
+
+["#balance", "#limit"].forEach((selector) => {
+    const element = $(selector);
+
+    if (element) {
+        element.addEventListener("input", updateRatio);
+    }
 });
 
-$("#clearHistory").addEventListener("click", () => {
-  if (!confirm("Clear all prediction history saved in this browser?")) return;
-  localStorage.removeItem("credence_history");
-  renderHistory();
-});
 
-renderHistory();
-checkHealth();
-setInterval(checkHealth, 30000);
+// ==========================================
+// 17. INITIALIZATION
+// ==========================================
+
+document.addEventListener("DOMContentLoaded", () => {
+    renderHistory();
+    updateRatio();
+    checkHealth();
+
+    setInterval(checkHealth, 30000);
+});

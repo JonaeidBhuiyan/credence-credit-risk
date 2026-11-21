@@ -1,56 +1,142 @@
-# Credence — Credit Risk Frontend
+# Credence — Credit Risk Prediction System
 
-A responsive frontend built with vanilla HTML, CSS, and JavaScript for the Credit Risk FastAPI project.
+A full-stack credit risk prediction and decision-support application built with **Python, FastAPI, Scikit-learn, XGBoost, HTML, CSS, and JavaScript**.
 
-## Project Structure
+Credence analyzes applicant and loan information to estimate the probability of loan default. It combines a machine learning backend with an interactive frontend dashboard for individual predictions, feature explanations, what-if analysis, and batch CSV scoring.
+
+## Project Overview
+
+Credence is designed to demonstrate how a machine learning model can be integrated into a practical full-stack application.
+
+**Key capabilities:**
+- Individual credit risk prediction
+- Five-fold calibrated XGBoost ensemble
+- SHAP-based feature explanations
+- What-if analysis for loan amount and interest rate
+- Batch predictions using CSV uploads
+- Adjustable decision threshold
+- Prediction history and dashboard statistics
+- Responsive frontend interface
+
+## Project Architecture
 
 ```text
-frontend/
-├── index.html
-├── style.css
-├── app.js
+credence-credit-risk/
+│
+├── backend/
+│   ├── main.py
+│   ├── requirements.txt
+│   ├── Credit_Risk.ipynb
+│   ├── check_components.py
+│   ├── verify_prediction.py
+│   │
+│   └── credit_risk_export/
+│       ├── calibration_params.pkl
+│       ├── preprocessor_1.pkl
+│       ├── preprocessor_2.pkl
+│       ├── preprocessor_3.pkl
+│       ├── preprocessor_4.pkl
+│       ├── preprocessor_5.pkl
+│       ├── xgboost_1.json
+│       ├── xgboost_2.json
+│       ├── xgboost_3.json
+│       ├── xgboost_4.json
+│       └── xgboost_5.json
+│
+├── frontend/
+│   ├── index.html
+│   ├── style.css
+│   └── app.js
+│
+├── .gitignore
 └── README.md
 ```
 
-- `index.html` — Page structure and applicant input form.
-- `style.css` — Responsive styling and visual design.
-- `app.js` — API integration, form validation, threshold controls, what-if analysis, CSV upload, and browser history.
+## Machine Learning Architecture
+
+Credence uses a **five-fold calibrated XGBoost ensemble**.
+
+The exported model components include:
+- Five preprocessing pipelines
+- Five XGBoost models
+- Calibration parameters
+
+Each fold processes the applicant's input and produces a probability estimate. The calibrated probabilities are combined to generate the final default-risk probability.
+
+This architecture allows the application to serve the reconstructed ensemble without depending on the original monolithic model file.
+
+## Technology Stack
+
+| Component | Technologies |
+|---|---|
+| Frontend | HTML5, CSS3, JavaScript |
+| Backend | Python, FastAPI |
+| Machine Learning | XGBoost, Scikit-learn |
+| Model Processing | NumPy, SciPy |
+| Model Explainability | SHAP |
+| Model Serialization | Joblib |
+| API Communication | REST API |
+| Local Prediction History | Browser localStorage |
 
 ## Getting Started
 
-### 1. Start the FastAPI Backend
+### 1. Clone the Repository
 
-Open a terminal in your `Credit Risk` backend project directory and activate your Python environment.
+```bash
+git clone https://github.com/JonaeidBhuiyan/credence-credit-risk.git
+cd credence-credit-risk
+```
 
-Start the backend:
+### 2. Create a Virtual Environment
+
+```powershell
+python -m venv .venv
+```
+
+Activate it on Windows:
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+```
+
+### 3. Install Backend Dependencies
+
+```powershell
+cd backend
+pip install -r requirements.txt
+```
+
+### 4. Start the FastAPI Backend
 
 ```powershell
 uvicorn main:app --reload
 ```
 
-By default, the API will run at:
+The API will run at:
 
 ```text
 http://127.0.0.1:8000
 ```
 
-### 2. Run the Frontend
+FastAPI interactive documentation:
 
-Keep all four frontend files in the same folder.
+```text
+http://127.0.0.1:8000/docs
+```
 
-Open `index.html` directly in your browser, or use the **Live Server** extension in Visual Studio Code.
+### 5. Run the Frontend
 
-The frontend is configured to communicate with:
+Open the `frontend` directory and launch `index.html` using the Visual Studio Code Live Server extension.
+
+The frontend communicates with the local API through the `API_BASE` configuration in `app.js`.
 
 ```javascript
 const API_BASE = "http://127.0.0.1:8000";
 ```
 
-If your backend runs at a different address or port, update `API_BASE` at the top of `app.js`.
+For a deployed application, configure this value to point to the deployed backend URL.
 
 ## API Endpoints
-
-The frontend uses the following FastAPI endpoints:
 
 | Method | Endpoint | Purpose |
 |---|---|---|
@@ -62,7 +148,7 @@ The frontend uses the following FastAPI endpoints:
 
 ## Input Features
 
-The frontend sends the model input features expected by the FastAPI backend.
+The frontend collects applicant and loan information expected by the backend.
 
 The `loan_percent_income` feature is calculated by the backend:
 
@@ -70,9 +156,9 @@ The `loan_percent_income` feature is calculated by the backend:
 loan_percent_income = loan_amnt / person_income
 ```
 
-It is not an editable field in the frontend form.
+It is not an editable frontend field.
 
-### Dropdown Values
+### Accepted Dropdown Values
 
 | Feature | Accepted Values |
 |---|---|
@@ -81,47 +167,59 @@ It is not an editable field in the frontend form.
 | Loan Grade | `A`, `B`, `C`, `D`, `E`, `F`, `G` |
 | Previous Default | `Y`, `N` |
 
-## Dashboard Data
+## Frontend Features
 
-The dashboard calculates prediction totals, high-risk counts, approval rates, and prediction history using browser `localStorage`.
+### Individual Prediction
+Submit applicant information and receive a predicted default-risk probability.
 
-**Important:** This information is stored locally in the current browser. It is not synchronized across different browsers or devices.
+### Risk Threshold Controls
+Adjust the decision threshold to update the displayed approval or rejection classification.
 
-The dashboard does not display dataset distributions or model evaluation metrics such as ROC-AUC, confusion matrix, precision, or recall because the current backend does not expose endpoints for these statistics.
+### What-If Analysis
+Compare predictions after changing loan amount or interest rate.
 
-No placeholder or invented values should be interpreted as actual model performance.
+### Batch CSV Prediction
+Upload a CSV containing the required input features and download scored results.
 
-## Threshold Controls
-
-- The threshold slider updates the displayed approval or rejection decision using the latest prediction probability.
-- The selected threshold is also sent with new predictions.
-- The frontend does not require the backend `/threshold` endpoint.
-
-## Batch CSV Prediction
-
-The batch prediction feature accepts a CSV file containing all required model input columns except:
-
+The CSV must not contain:
 - `loan_percent_income` — calculated by the backend.
-- The target column — must not be included as an input feature.
+- The target column — not used as an input feature.
 
-Make sure the CSV column names and values match the backend's expected input schema.
+### Dashboard and Prediction History
+The dashboard tracks prediction totals, high-risk counts, approval rates, and prediction history using browser `localStorage`.
 
-## CORS Configuration
+This information is stored locally in the current browser and is not synchronized across devices.
 
-The FastAPI backend must allow browser requests from the frontend origin through Cross-Origin Resource Sharing (CORS).
+## Important Notes
 
-If the frontend cannot communicate with the API, check the backend CORS configuration and browser console for errors.
+- The backend must be running before the frontend can communicate with it.
+- Configure CORS correctly for the frontend origin.
+- CSV column names and values must match the backend's expected input schema.
+- Dashboard statistics represent locally recorded predictions, not model evaluation metrics.
+- Model evaluation metrics such as ROC-AUC, precision, recall, and confusion matrix are not presented as live dashboard statistics.
 
-## Important Disclaimer
+## Disclaimer
 
-Credence is a credit risk prediction and decision-support demonstration project. It is not an automated lending decision system.
+Credence is an educational credit risk prediction and decision-support demonstration project.
+
+It is not an automated lending decision system.
 
 Before using this system in a real lending environment, thoroughly validate:
 
-- Model performance and reliability.
-- Prediction calibration.
-- Fairness and potential bias.
-- Data privacy and security.
-- Applicable financial regulations and legal requirements.
+- Model performance and reliability
+- Probability calibration
+- Fairness and potential bias
+- Data privacy and security
+- Applicable financial regulations and legal requirements
 
 **Predictions should not be used as the sole basis for real-world lending decisions.**
+
+## Author
+
+**Jonaeid Bhuiyan**
+
+GitHub: [@JonaeidBhuiyan](https://github.com/JonaeidBhuiyan)
+
+---
+
+Built as a machine learning engineering project demonstrating model development, ensemble inference, API integration, and full-stack deployment.
