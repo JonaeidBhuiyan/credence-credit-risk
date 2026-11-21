@@ -10,7 +10,7 @@
    1. API CONFIGURATION
 ================================================== */
 
-const API_BASE = "https://credence-credit-risk-2.onrender.com";
+const API_BASE = "https://credence-credit-risk-2.onrender.com/";
 
 
 /* ==================================================
