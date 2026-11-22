@@ -1,8 +1,7 @@
 
 /* ==================================================
    CREDENCE CREDIT RISK
-   FRONTEND APPLICATION
-   STEP 1–9: COMPLETE VERSION
+   FRONTEND APPLICATION — REVISED VERSION
 ================================================== */
 
 
@@ -10,7 +9,8 @@
    1. API CONFIGURATION
 ================================================== */
 
-const API_BASE = "https://credence-credit-risk-2.onrender.com/";
+const API_BASE = "https://credence-credit-risk-2.onrender.com"
+    .replace(/\/+$/, "");
 
 
 /* ==================================================
@@ -30,11 +30,9 @@ const formError = document.getElementById("formError");
 
 // Loan ratio
 const loanAmountInput = document.getElementById("loanAmount");
-
 const incomeInput = document.querySelector(
     'input[name="person_income"]'
 );
-
 const ratioValue = document.getElementById("ratioValue");
 
 // Threshold
@@ -46,11 +44,23 @@ const thresholdValue = document.getElementById("thresholdValue");
 const historyBody = document.getElementById("historyBody");
 const clearHistoryBtn = document.getElementById("clearHistory");
 
+// Dashboard metrics
+const totalAssessments = document.getElementById("totalAssessments");
+const highRiskCount = document.getElementById("highRiskCount");
+const approvalRate = document.getElementById("approvalRate");
+
 // What-if
 const whatIfAmount = document.getElementById("whatIfAmount");
 const whatIfRate = document.getElementById("whatIfRate");
 const whatIfBtn = document.getElementById("whatIfBtn");
 const whatIfResult = document.getElementById("whatIfResult");
+
+// Result panel
+const emptyState = document.getElementById("emptyState");
+const resultContent = document.getElementById("resultContent");
+const probabilityValue = document.getElementById("probabilityValue");
+const probabilityBar = document.getElementById("probabilityBar");
+const riskBadge = document.getElementById("riskBadge");
 
 // Prediction state
 let latestPrediction = null;
@@ -77,28 +87,25 @@ async function checkApiHealth() {
         const data = await response.json();
 
         if (
-            data.status === "healthy" &&
-            data.model_loaded === true
+            data.status !== "healthy" ||
+            data.model_loaded !== true ||
+            data.folds_loaded !== 5
         ) {
-
-            apiDot.className = "status-dot online";
-            apiStatus.textContent = "API Connected";
-            apiMessage.textContent = "Model loaded successfully";
-            modelStatus.textContent = "Online";
-
-            console.log("Credence API:", data);
-
-        } else {
-
-            throw new Error("Model is not loaded correctly");
-
+            throw new Error("Model health check failed.");
         }
+
+        apiDot.className = "status-dot online";
+        apiStatus.textContent = "API Connected";
+        apiMessage.textContent = "5-Fold model loaded successfully";
+        modelStatus.textContent = "Online";
+
+        console.log("Credence API health:", data);
 
     } catch (error) {
 
         apiDot.className = "status-dot offline";
         apiStatus.textContent = "API Offline";
-        apiMessage.textContent = "Unable to connect";
+        apiMessage.textContent = "Unable to connect to prediction service";
         modelStatus.textContent = "Offline";
 
         console.error("API connection error:", error);
@@ -114,12 +121,18 @@ async function checkApiHealth() {
 
 function calculateLoanRatio() {
 
+    if (!loanAmountInput || !incomeInput || !ratioValue) {
+        return;
+    }
+
     const loanAmount = Number(loanAmountInput.value);
     const annualIncome = Number(incomeInput.value);
 
     if (
-        !loanAmountInput.value ||
-        !incomeInput.value ||
+        loanAmountInput.value.trim() === "" ||
+        incomeInput.value.trim() === "" ||
+        !Number.isFinite(loanAmount) ||
+        !Number.isFinite(annualIncome) ||
         loanAmount <= 0 ||
         annualIncome <= 0
     ) {
@@ -137,20 +150,19 @@ function calculateLoanRatio() {
 }
 
 
-// Listen for input changes
-loanAmountInput.addEventListener(
+loanAmountInput?.addEventListener(
     "input",
     calculateLoanRatio
 );
 
-incomeInput.addEventListener(
+incomeInput?.addEventListener(
     "input",
     calculateLoanRatio
 );
 
 
 /* ==================================================
-   5. READ CREDIT APPLICATION
+   5. READ AND VALIDATE CREDIT APPLICATION
 ================================================== */
 
 function readApplication() {
@@ -162,11 +174,11 @@ function readApplication() {
     // Read form values
     for (const [key, value] of formData.entries()) {
 
-        application[key] = value.trim();
+        application[key] = String(value).trim();
 
     }
 
-    // Convert numeric fields
+    // Numeric fields
     const numericFields = [
         "person_age",
         "person_income",
@@ -176,11 +188,51 @@ function readApplication() {
         "cb_person_cred_hist_length"
     ];
 
-    numericFields.forEach(field => {
+    // Check required fields
+    for (const field of numericFields) {
+
+        if (
+            application[field] === undefined ||
+            application[field] === ""
+        ) {
+            throw new Error(`Please enter ${field.replaceAll("_", " ")}.`);
+        }
 
         application[field] = Number(application[field]);
 
-    });
+        if (!Number.isFinite(application[field])) {
+            throw new Error(`Invalid value for ${field.replaceAll("_", " ")}.`);
+        }
+
+    }
+
+    // Positive income is required for the ratio
+    if (application.person_income <= 0) {
+        throw new Error("Annual income must be greater than zero.");
+    }
+
+    if (application.loan_amnt <= 0) {
+        throw new Error("Loan amount must be greater than zero.");
+    }
+
+    // Required categorical fields
+    const categoricalFields = [
+        "person_home_ownership",
+        "loan_intent",
+        "loan_grade",
+        "cb_person_default_on_file"
+    ];
+
+    for (const field of categoricalFields) {
+
+        if (
+            !application[field] ||
+            application[field].trim() === ""
+        ) {
+            throw new Error(`Please select ${field.replaceAll("_", " ")}.`);
+        }
+
+    }
 
     // Calculate loan-to-income ratio
     application.loan_percent_income =
@@ -195,7 +247,18 @@ function readApplication() {
    6. SEND PREDICTION REQUEST
 ================================================== */
 
-async function requestPrediction(application) {
+async function requestPrediction(
+    application,
+    threshold = Number(globalThreshold.value) / 100
+) {
+
+    if (
+        !Number.isFinite(threshold) ||
+        threshold < 0 ||
+        threshold > 1
+    ) {
+        throw new Error("Invalid decision threshold.");
+    }
 
     const response = await fetch(`${API_BASE}/predict`, {
 
@@ -209,14 +272,14 @@ async function requestPrediction(application) {
 
             application: application,
 
-            threshold: Number(globalThreshold.value) / 100
+            threshold: threshold
 
         })
 
     });
 
 
-    // Safely read response
+    // Read backend response
     let data;
 
     try {
@@ -260,11 +323,19 @@ async function requestPrediction(application) {
         probability < 0 ||
         probability > 1
     ) {
+        throw new Error("Backend returned an invalid probability.");
+    }
 
-        throw new Error(
-            "Backend returned an invalid probability."
-        );
 
+    // Validate threshold
+    const responseThreshold = Number(data.threshold);
+
+    if (
+        !Number.isFinite(responseThreshold) ||
+        responseThreshold < 0 ||
+        responseThreshold > 1
+    ) {
+        throw new Error("Backend returned an invalid threshold.");
     }
 
     return data;
@@ -276,7 +347,7 @@ async function requestPrediction(application) {
    7. HANDLE FORM SUBMISSION
 ================================================== */
 
-creditForm.addEventListener("submit", async function(event) {
+creditForm?.addEventListener("submit", async function(event) {
 
     event.preventDefault();
 
@@ -287,22 +358,34 @@ creditForm.addEventListener("submit", async function(event) {
 
     try {
 
-        // Read application
+        // Read and validate application
         const application = readApplication();
 
         // Request prediction
         const result = await requestPrediction(application);
 
-        // Save original application for What-if
+        // Save successful original application
         latestApplication = { ...application };
+
+        // Display prediction
+        renderPredictionResult(result);
 
         console.log("Prediction result:", result);
 
-        // Display result
-        renderPredictionResult(result);
+        // Save history separately.
+        // History failure must not invalidate a successful prediction.
+        try {
 
-        // Save prediction history
-        addPredictionToHistory(application, result);
+            addPredictionToHistory(application, result);
+
+        } catch (historyError) {
+
+            console.error("History error:", historyError);
+
+            formError.textContent =
+                "Prediction successful, but browser history could not be saved.";
+
+        }
 
     } catch (error) {
 
@@ -329,29 +412,22 @@ creditForm.addEventListener("submit", async function(event) {
 function renderPredictionResult(result) {
 
     const probability = Number(result.default_probability);
+    const threshold = Number(result.threshold);
 
     if (
         !Number.isFinite(probability) ||
         probability < 0 ||
         probability > 1
     ) {
-
-        throw new Error(
-            "Invalid prediction probability received."
-        );
-
+        throw new Error("Invalid prediction probability received.");
     }
-
-    const threshold = Number(result.threshold);
 
     if (
         !Number.isFinite(threshold) ||
         threshold < 0 ||
         threshold > 1
     ) {
-
         throw new Error("Invalid threshold received.");
-
     }
 
     // Save latest prediction
@@ -359,69 +435,47 @@ function renderPredictionResult(result) {
 
     const probabilityPercent = probability * 100;
 
-
     // Show result panel
-    document.getElementById("emptyState")
-        .classList.add("hidden");
-
-    document.getElementById("resultContent")
-        .classList.remove("hidden");
-
+    emptyState?.classList.add("hidden");
+    resultContent?.classList.remove("hidden");
 
     // Default probability
-    document.getElementById("probabilityValue")
-        .textContent = probabilityPercent.toFixed(2);
-
+    probabilityValue.textContent =
+        probabilityPercent.toFixed(2);
 
     // Probability bar
-    document.getElementById("probabilityBar").style.width =
+    probabilityBar.style.width =
         `${probabilityPercent}%`;
 
-
     // Risk badge
-    const riskBadge = document.getElementById("riskBadge");
-
-    const risk = String(
-        result.risk_band || "Unknown"
-    ).toLowerCase();
+    const risk = String(result.risk_band || "Unknown").toLowerCase();
 
     riskBadge.textContent = result.risk_band || "Unknown";
-
     riskBadge.className = "risk-badge";
 
     if (["low", "medium", "high"].includes(risk)) {
-
         riskBadge.classList.add(risk);
-
     }
 
-
     // Synchronize threshold sliders
-    globalThreshold.value = Math.round(threshold * 100);
+    const thresholdPercent = Math.round(threshold * 100);
 
-    resultThreshold.value = Math.round(threshold * 100);
-
-    thresholdValue.textContent = globalThreshold.value;
-
+    globalThreshold.value = thresholdPercent;
+    resultThreshold.value = thresholdPercent;
+    thresholdValue.textContent = thresholdPercent;
 
     // Update decision
     updateDecision(probability, threshold);
 
-
-    // Console verification
     console.log(
         "Non-default probability:",
         result.non_default_probability
     );
 
-
     // Scroll to result
-    document.getElementById("results").scrollIntoView({
-
+    document.getElementById("results")?.scrollIntoView({
         behavior: "smooth",
-
         block: "start"
-
     });
 
 }
@@ -442,92 +496,52 @@ function updateDecision(probability, threshold) {
     const thresholdLabel =
         document.getElementById("resultThresholdValue");
 
-
     const isRejected = probability >= threshold;
-
 
     // Decision text
     decisionValue.textContent = isRejected
         ? "Reject"
         : "Approve";
 
-
     // Decision icon
     decisionMark.textContent = isRejected
         ? "×"
         : "✓";
-
 
     // Decision styling
     decisionMark.className = isRejected
         ? "decision-mark reject"
         : "decision-mark";
 
-
     // Threshold label
     thresholdLabel.textContent =
         `${(threshold * 100).toFixed(0)}%`;
 
-
-    // Synchronize result slider
-    resultThreshold.value =
-        Math.round(threshold * 100);
+    // Synchronize sliders
+    resultThreshold.value = Math.round(threshold * 100);
+    globalThreshold.value = Math.round(threshold * 100);
+    thresholdValue.textContent = Math.round(threshold * 100);
 
 }
 
 
 /* ==================================================
-   10. RESULT THRESHOLD SLIDER
+   10. THRESHOLD SLIDER SYNCHRONIZATION
 ================================================== */
 
-resultThreshold.addEventListener("input", function() {
+function handleThresholdChange(value) {
 
-    const thresholdPercent = Number(this.value);
-
+    const thresholdPercent = Number(value);
     const threshold = thresholdPercent / 100;
 
-
-    // Synchronize global slider
+    // Synchronize both sliders
     globalThreshold.value = thresholdPercent;
-
-
-    // Update percentage
-    thresholdValue.textContent = thresholdPercent;
-
-
-    // Update decision
-    if (latestPrediction) {
-
-        updateDecision(
-            Number(latestPrediction.default_probability),
-            threshold
-        );
-
-    }
-
-});
-
-
-/* ==================================================
-   11. GLOBAL THRESHOLD SLIDER
-================================================== */
-
-globalThreshold.addEventListener("input", function() {
-
-    const thresholdPercent = Number(this.value);
-
-    const threshold = thresholdPercent / 100;
-
-
-    // Update percentage
-    thresholdValue.textContent = thresholdPercent;
-
-
-    // Synchronize result slider
     resultThreshold.value = thresholdPercent;
 
+    // Update label
+    thresholdValue.textContent = thresholdPercent;
 
-    // Update decision
+    // Recalculate decision using existing probability
     if (latestPrediction) {
 
         updateDecision(
@@ -537,24 +551,42 @@ globalThreshold.addEventListener("input", function() {
 
     }
 
+}
+
+
+globalThreshold?.addEventListener("input", function() {
+
+    handleThresholdChange(this.value);
+
+});
+
+
+resultThreshold?.addEventListener("input", function() {
+
+    handleThresholdChange(this.value);
+
 });
 
 
 /* ==================================================
-   12. PREDICTION HISTORY
+   11. PREDICTION HISTORY
 ================================================== */
 
 const HISTORY_KEY = "credence_prediction_history";
 
 
-// Load saved history
+// Load history
 function getPredictionHistory() {
 
     try {
 
-        const history = JSON.parse(
-            localStorage.getItem(HISTORY_KEY)
-        );
+        const storedHistory = localStorage.getItem(HISTORY_KEY);
+
+        if (!storedHistory) {
+            return [];
+        }
+
+        const history = JSON.parse(storedHistory);
 
         return Array.isArray(history) ? history : [];
 
@@ -592,7 +624,7 @@ function savePredictionHistory(history) {
 }
 
 
-// Add new prediction
+// Add prediction to history
 function addPredictionToHistory(application, result) {
 
     const history = getPredictionHistory();
@@ -617,16 +649,12 @@ function addPredictionToHistory(application, result) {
 
     };
 
-
-    // Add newest record first
+    // Newest record first
     history.unshift(record);
-
 
     // Keep latest 50 records
     const limitedHistory = history.slice(0, 50);
 
-
-    // Save and render
     savePredictionHistory(limitedHistory);
 
     renderPredictionHistory();
@@ -634,7 +662,7 @@ function addPredictionToHistory(application, result) {
 }
 
 
-// Render prediction history
+// Render history table
 function renderPredictionHistory() {
 
     if (!historyBody) {
@@ -646,74 +674,63 @@ function renderPredictionHistory() {
 
     historyBody.innerHTML = "";
 
-
-    // Empty history
+    // Empty state
     if (history.length === 0) {
 
         const row = document.createElement("tr");
-
         const cell = document.createElement("td");
 
         cell.colSpan = 6;
-
         cell.className = "table-empty";
 
         cell.textContent =
             "No predictions yet. Your completed assessments will appear here.";
 
         row.appendChild(cell);
-
         historyBody.appendChild(row);
+
+        updateDashboardMetrics(history);
 
         return;
 
     }
 
 
-    // Render each record
+    // Render records
     history.forEach(record => {
 
         const row = document.createElement("tr");
 
         const values = [
-
             record.date,
-
             record.applicantAge,
-
             `$${Number(record.loanAmount).toLocaleString()}`,
-
             `${(Number(record.probability) * 100).toFixed(2)}%`,
-
             record.riskBand,
-
             record.decision
-
         ];
-
 
         values.forEach((value, index) => {
 
             const cell = document.createElement("td");
 
-            cell.textContent = value;
-
-            // Risk styling
+            // Risk cell
             if (index === 4) {
 
                 const risk = String(value).toLowerCase();
 
-                const span = document.createElement("span");
+                const riskElement = document.createElement("span");
 
-                span.className = `table-risk ${risk}`;
+                riskElement.className = `table-risk ${risk}`;
 
-                span.textContent = value;
+                riskElement.textContent = String(value);
 
-                cell.appendChild(span);
+                // Ensure only one risk label is inserted
+                cell.replaceChildren(riskElement);
 
             }
 
-            // Decision styling
+            // Decision cell
             else if (index === 5) {
 
                 cell.className =
@@ -721,13 +738,14 @@ function renderPredictionHistory() {
                         ? "decision-approved"
                         : "decision-rejected";
 
-                cell.textContent = value;
+                cell.textContent = String(value);
 
             }
 
+            // Normal cells
             else {
 
-                cell.textContent = value;
+                cell.textContent = String(value);
 
             }
 
@@ -735,18 +753,71 @@ function renderPredictionHistory() {
 
         });
 
-
         historyBody.appendChild(row);
 
     });
 
+    updateDashboardMetrics(history);
+
 }
 
 
-// Clear history
-if (clearHistoryBtn) {
+/* ==================================================
+   12. DASHBOARD METRICS
+================================================== */
 
-    clearHistoryBtn.addEventListener("click", function() {
+function updateDashboardMetrics(history) {
+
+    if (totalAssessments) {
+
+        totalAssessments.textContent = history.length;
+
+    }
+
+    if (highRiskCount) {
+
+        const highCount = history.filter(record =>
+
+            String(record.riskBand).toLowerCase() === "high"
+
+        ).length;
+
+        highRiskCount.textContent = highCount;
+
+    }
+
+    if (approvalRate) {
+
+        if (history.length === 0) {
+
+            approvalRate.textContent = "—";
+
+        } else {
+
+            const approvedCount = history.filter(record =>
+
+                String(record.decision).toLowerCase() === "approve"
+
+            ).length;
+
+            const rate = (approvedCount / history.length) * 100;
+
+            approvalRate.textContent = `${rate.toFixed(1)}%`;
+
+        }
+
+    }
+
+}
+
+
+/* ==================================================
+   13. CLEAR HISTORY
+================================================== */
+
+clearHistoryBtn?.addEventListener("click", function() {
+
+    try {
 
         localStorage.removeItem(HISTORY_KEY);
 
@@ -754,18 +825,21 @@ if (clearHistoryBtn) {
 
         console.log("Prediction history cleared.");
 
-    });
+    } catch (error) {
 
-}
+        console.error("History clearing error:", error);
+
+    }
+
+});
 
 
 /* ==================================================
-   13. WHAT-IF ANALYSIS
+   14. WHAT-IF ANALYSIS
 ================================================== */
 
 async function runWhatIfAnalysis() {
 
-    // Check original prediction
     if (!latestPrediction || !latestApplication) {
 
         showWhatIfMessage(
@@ -776,12 +850,8 @@ async function runWhatIfAnalysis() {
 
     }
 
-
-    // Read scenario inputs
     const newAmount = whatIfAmount.value.trim();
-
     const newRate = whatIfRate.value.trim();
-
 
     // Require at least one change
     if (!newAmount && !newRate) {
@@ -793,7 +863,6 @@ async function runWhatIfAnalysis() {
         return;
 
     }
-
 
     // Copy original application
     const scenarioApplication = {
@@ -851,11 +920,14 @@ async function runWhatIfAnalysis() {
         scenarioApplication.person_income;
 
 
+    // Use the current decision threshold
+    const currentThreshold =
+        Number(globalThreshold.value) / 100;
+
+
     // Loading state
     whatIfBtn.disabled = true;
-
-    whatIfBtn.textContent =
-        "Analyzing scenario...";
+    whatIfBtn.textContent = "Analyzing scenario...";
 
     whatIfResult.classList.remove("hidden");
 
@@ -865,19 +937,17 @@ async function runWhatIfAnalysis() {
 
     try {
 
-        // Request new prediction
+        // Request scenario prediction
         const scenarioResult = await requestPrediction(
-            scenarioApplication
+            scenarioApplication,
+            currentThreshold
         );
 
-
-        // Get original and new probabilities
         const originalProbability =
             Number(latestPrediction.default_probability);
 
         const newProbability =
             Number(scenarioResult.default_probability);
-
 
         if (
             !Number.isFinite(originalProbability) ||
@@ -891,10 +961,9 @@ async function runWhatIfAnalysis() {
         }
 
 
-        // Calculate probability difference
+        // Calculate difference in percentage points
         const difference =
             (newProbability - originalProbability) * 100;
-
 
         let comparison;
 
@@ -903,16 +972,12 @@ async function runWhatIfAnalysis() {
             comparison =
                 `Default probability increased by ${difference.toFixed(2)} percentage points.`;
 
-        }
-
-        else if (difference < 0) {
+        } else if (difference < 0) {
 
             comparison =
                 `Default probability decreased by ${Math.abs(difference).toFixed(2)} percentage points.`;
 
-        }
-
-        else {
+        } else {
 
             comparison =
                 "Default probability remained unchanged.";
@@ -921,46 +986,32 @@ async function runWhatIfAnalysis() {
 
 
         // Calculate scenario decision
-        const threshold = Number(scenarioResult.threshold);
-
         const decision =
-            newProbability >= threshold
+            newProbability >= currentThreshold
                 ? "Reject"
                 : "Approve";
 
 
-        // Display comparison
+        // Safely render scenario result
         whatIfResult.replaceChildren();
 
-
         const heading = document.createElement("strong");
-
-        heading.textContent =
-            "Scenario comparison";
-
+        heading.textContent = "Scenario comparison";
 
         const original = document.createElement("p");
-
         original.textContent =
             `Original default probability: ${(originalProbability * 100).toFixed(2)}%`;
 
-
         const updated = document.createElement("p");
-
         updated.textContent =
             `New default probability: ${(newProbability * 100).toFixed(2)}%`;
 
-
         const change = document.createElement("p");
-
         change.textContent = comparison;
 
-
         const decisionText = document.createElement("p");
-
         decisionText.textContent =
             `New decision: ${decision}`;
-
 
         whatIfResult.append(
             heading,
@@ -970,31 +1021,19 @@ async function runWhatIfAnalysis() {
             decisionText
         );
 
+        console.log("What-if scenario result:", scenarioResult);
 
-        console.log(
-            "What-if scenario result:",
-            scenarioResult
-        );
+    } catch (error) {
 
-    }
-
-    catch (error) {
-
-        console.error(
-            "What-if analysis error:",
-            error
-        );
+        console.error("What-if analysis error:", error);
 
         showWhatIfMessage(error.message);
 
-    }
-
-    finally {
+    } finally {
 
         whatIfBtn.disabled = false;
 
-        whatIfBtn.textContent =
-            "Compare scenario →";
+        whatIfBtn.textContent = "Compare scenario →";
 
     }
 
@@ -1012,18 +1051,14 @@ function showWhatIfMessage(message) {
 
 
 // Connect What-if button
-if (whatIfBtn) {
-
-    whatIfBtn.addEventListener(
-        "click",
-        runWhatIfAnalysis
-    );
-
-}
+whatIfBtn?.addEventListener(
+    "click",
+    runWhatIfAnalysis
+);
 
 
 /* ==================================================
-   14. INITIALIZE APPLICATION
+   15. INITIALIZE APPLICATION
 ================================================== */
 
 checkApiHealth();
@@ -1035,4 +1070,3 @@ calculateLoanRatio();
 console.log(
     "Credence Credit Risk frontend initialized successfully."
 );
-
